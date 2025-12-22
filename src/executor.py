@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from src.utils import retry_async
 
 logger = logging.getLogger('bot.executor')

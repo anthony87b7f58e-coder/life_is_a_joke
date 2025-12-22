@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.data_fetcher import DataFetcher
-from src.predictor import Predictor
+from src.predictor import HybridPredictor
 from src.sentiment import SentimentAnalyzer
 from src.risk_manager import RiskManager
 from src.executor import Executor
@@ -53,7 +53,7 @@ async def integration_demo():
     
     # 4. ML Predictor
     logger.info('Starting Predictor...')
-    pred = Predictor(cfg)
+    pred = HybridPredictor(cfg)
     await pred.start()
     
     # 5. Risk Manager
