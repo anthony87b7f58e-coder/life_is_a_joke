@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import List, Dict
 from src.utils import retry_async
 
 logger = logging.getLogger('bot.executor')
@@ -26,8 +27,9 @@ class Executor:
         except Exception as e:
             logger.exception('Order failed: %s', e)
             raise
-        async def execute_classic_strategy(self, signals: List[Dict]):
-
+    
+    async def execute_classic_strategy(self, signals: List[Dict]):
+        """Execute trades based on classic strategy signals"""
         executed_orders = []
         
         for signal in signals:

@@ -5,7 +5,7 @@ Runs a mock trading session without connecting to real exchanges.
 import asyncio
 import sys
 import os
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.data_fetcher import DataFetcher
 from src.predictor import Predictor
@@ -15,9 +15,9 @@ from src.executor import Executor
 from src.optimizer import Optimizer
 from src.reporter import Reporter
 from src.health_monitor import HealthMonitor
-from src.ml_models import HybridPredictor
-from src.sentiment_advanced import SentimentAggregator, BERTSentimentAnalyzer
-from src.advanced_risk import AdvancedRiskManager
+from src.ml_models import PricePredictorLSTM, TransformerPredictor
+from src.sentiment_advanced import BERTSentimentAnalyzer
+from src.advanced_risk import RLPortfolioManager
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(message)s')
@@ -83,10 +83,10 @@ async def integration_demo():
     
     # ML Ensemble Prediction
     import numpy as np
-    hybrid = HybridPredictor()
+    lstm_model = PricePredictorLSTM()
     mock_features = np.random.randn(50, 10)
-    pred_result = hybrid.predict_ensemble(mock_features)
-    logger.info('Ensemble Prediction: %s', pred_result)
+    pred_result = lstm_model.predict(mock_features[:10].reshape(10, 1, 10))
+    logger.info('LSTM Prediction shape: %s', pred_result.shape)
     
     # Sentiment Analysis
     bert = BERTSentimentAnalyzer()
@@ -100,18 +100,11 @@ async def integration_demo():
         logger.info('Sentiment: %s -> %s', s['text'], s['label'])
     
     # Advanced Risk Management
-    adv_risk = AdvancedRiskManager()
-    market_state = {
-        'volatility': 0.3,
-        'trend': 0.5
-    }
-    portfolio = {
-        'btc': 1.5,
-        'eth': 10,
-        'current_drawdown': 0.02
-    }
-    risk_result = await adv_risk.manage_risk(market_state, portfolio)
-    logger.info('Risk Management Result: %s', risk_result)
+    adv_risk = RLPortfolioManager(asset_count=2)
+    portfolio = np.array([0.5, 0.5])  # 50% BTC, 50% ETH
+    market_conditions = {'volatility': 0.3, 'trend': 0.5}
+    rebalanced = adv_risk.rebalance(portfolio, market_conditions)
+    logger.info('Portfolio rebalanced: %s', rebalanced)
     
     # Sample trade execution
     logger.info('\n=== Sample Trade Execution ===')
