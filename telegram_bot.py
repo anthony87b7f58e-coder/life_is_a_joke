@@ -1,10 +1,12 @@
 import asyncio
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from backtester.cli import test
 import json
 
-TELEGRAM_TOKEN = "YOUR_BOT_TOKEN_HERE"
+# Get token from environment variable - NEVER hardcode secrets!
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -38,6 +40,11 @@ async def strategies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📈 Available: RSI, DCA")
 
 def main():
+    if not TELEGRAM_TOKEN:
+        print("ERROR: TELEGRAM_TOKEN environment variable not set!")
+        print("Set it with: export TELEGRAM_TOKEN='your_bot_token'")
+        return
+    
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from typing import List, Dict, Optional
+import ccxt.async_support as ccxt
 from src.utils import retry_async
 
 logger = logging.getLogger('bot.executor')
@@ -10,12 +11,133 @@ class Executor:
         self.cfg = cfg
         self.redis_url = redis_url
         self.running = False
+        self.exchange = None
+        self.open_positions = {}  # Track open positions
+        self.exchange_rules = {}  # Cache exchange rules
 
     async def start(self):
+        """Initialize exchange connection"""
         self.running = True
+        await self._initialize_exchange()
+
+    async def _initialize_exchange(self):
+        """Initialize CCXT exchange instance"""
+        try:
+            # Get exchange config
+            exchange_name = 'binance'  # Default
+            
+            # Get API credentials from config
+            api_key = ''
+            api_secret = ''
+            
+            if hasattr(self.cfg, 'secrets'):
+                api_key = self.cfg.secrets.get('binance_api_key', '')
+                api_secret = self.cfg.secrets.get('binance_api_secret', '')
+            elif isinstance(self.cfg, dict):
+                api_key = self.cfg.get('secrets', {}).get('binance_api_key', '')
+                api_secret = self.cfg.get('secrets', {}).get('binance_api_secret', '')
+            
+            # Create exchange instance
+            exchange_class = getattr(ccxt, exchange_name)
+            self.exchange = exchange_class({
+                'apiKey': api_key,
+                'secret': api_secret,
+                'enableRateLimit': True,
+                'options': {
+                    'defaultType': 'spot',
+                },
+            })
+            
+            # Use testnet if in paper/test mode
+            env = getattr(self.cfg, 'environment', self.cfg.get('environment', 'paper'))
+            if env in ['paper', 'test']:
+                self.exchange.set_sandbox_mode(True)
+                logger.info("Exchange initialized in TESTNET mode")
+            else:
+                logger.info("Exchange initialized in LIVE mode")
+            
+            # Load markets
+            await self.exchange.load_markets()
+            logger.info(f"✓ {exchange_name} exchange initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize exchange: {e}")
+            self.exchange = None
 
     async def stop(self):
+        """Stop executor and close exchange connection"""
         self.running = False
+        if self.exchange:
+            try:
+                await self.exchange.close()
+                logger.info("Exchange connection closed")
+            except Exception as e:
+                logger.error(f"Error closing exchange: {e}")
+
+    async def shutdown(self):
+        """Alias for stop()"""
+        await self.stop()
+
+    async def has_open_position(self, symbol: str) -> bool:
+        """Check if there's an open position for symbol"""
+        # Check in-memory tracking
+        if symbol in self.open_positions:
+            return True
+        
+        # For spot trading, check account balances
+        if self.exchange:
+            try:
+                # Extract base currency from symbol (e.g., BTC from BTC/USDT)
+                base_currency = symbol.split('/')[0] if '/' in symbol else symbol[:3]
+                balance = await self.exchange.fetch_balance()
+                
+                # Check if we have any of this asset
+                if base_currency in balance['total']:
+                    amount = balance['total'][base_currency]
+                    if amount > 0:
+                        logger.info(f"Found existing {base_currency} balance: {amount}")
+                        self.open_positions[symbol] = {'amount': amount}
+                        return True
+            except Exception as e:
+                logger.warning(f"Error checking position for {symbol}: {e}")
+        
+        return False
+
+    async def adjust_amount_to_exchange_rules(self, symbol: str, amount: float) -> float:
+        """Adjust amount according to exchange precision rules"""
+        if not self.exchange or not self.exchange.markets:
+            logger.warning("Exchange not initialized, returning raw amount")
+            return round(amount, 8)
+        
+        try:
+            # Get market info
+            if symbol not in self.exchange.markets:
+                logger.warning(f"Symbol {symbol} not found in markets")
+                return round(amount, 8)
+            
+            market = self.exchange.markets[symbol]
+            precision = market.get('precision', {})
+            
+            # Get amount precision
+            amount_precision = precision.get('amount', 8)
+            
+            # Round to appropriate precision
+            adjusted_amount = round(amount, amount_precision)
+            
+            # Check minimum amount
+            limits = market.get('limits', {})
+            min_amount = limits.get('amount', {}).get('min', 0)
+            
+            if adjusted_amount < min_amount:
+                logger.warning(f"Amount {adjusted_amount} below minimum {min_amount} for {symbol}")
+                return min_amount
+            
+            return adjusted_amount
+            
+        except Exception as e:
+            logger.error(f"Error adjusting amount for {symbol}: {e}")
+            return round(amount, 8)
+
 
     @retry_async(retries=3, delay=1)
     async def place_order(self, exchange_client, symbol, side, amount, price=None, params=None):

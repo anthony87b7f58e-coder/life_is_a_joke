@@ -1,9 +1,10 @@
 import asyncio
 import logging
 import signal
+from typing import Dict
 from src.config import load_config, get_redis_url
 from src.data_fetcher import DataFetcher
-from src.predictor import Predictor
+from src.predictor import Predictor, HybridPredictor
 from src.sentiment import SentimentAnalyzer
 from src.risk_manager import RiskManager
 from src.executor import Executor
@@ -67,22 +68,6 @@ async def start_services():
     await health.stop()
 
 
-def main():
-    asyncio.run(start_services())
-
-metrics.add_trade(Trade(
-    timestamp=pd.Timestamp.utcnow().isoformat(),
-    symbol=symbol,
-    side="buy",
-    amount=amount,
-    price=last_price,
-    profit=0.0,  # или фактический PnL
-))
-
-if __name__ == '__main__':
-    main()
-# ... существующий код ...
-
 async def classic_trading_cycle(config: Dict):
     """
     Основной цикл классической торговли
@@ -141,3 +126,11 @@ async def classic_trading_cycle(config: Dict):
         await health.shutdown()
         logger.info("Классический торговый цикл завершен")
 
+
+def main():
+    """Main entry point for the trading bot"""
+    asyncio.run(start_services())
+
+
+if __name__ == '__main__':
+    main()

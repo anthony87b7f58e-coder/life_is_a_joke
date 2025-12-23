@@ -1,3 +1,10 @@
+"""
+Dollar Cost Averaging Strategy
+"""
+import pandas as pd
+from typing import Dict
+
+
 class DCAStrategy:
     DCA_INTERVAL = 24  # hours
     

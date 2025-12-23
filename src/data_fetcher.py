@@ -5,6 +5,7 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 import pandas as pd
+import numpy as np
 import ccxt.async_support as ccxt
 from datetime import datetime, timedelta
 import cachetools
