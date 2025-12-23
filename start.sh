@@ -29,7 +29,9 @@ fi
 
 # Load environment variables
 if [ -f ".env" ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+    set -a
+    source .env
+    set +a
 fi
 
 echo "Starting Life is a Joke application on port $PORT..."

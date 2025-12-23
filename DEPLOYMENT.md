@@ -334,7 +334,7 @@ If experiencing SSL certificate issues during Docker build:
 
 2. Check Nginx error logs:
    ```bash
-   sudo tail -f /var/nginx/error.log
+   sudo tail -f /var/log/nginx/error.log
    ```
 
 3. Verify Nginx configuration:
