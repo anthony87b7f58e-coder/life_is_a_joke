@@ -149,10 +149,20 @@ class HealthChecker:
             with open(env_file, 'r') as f:
                 content = f.read()
                 for var in required_vars:
-                    if f"{var}=" in content and not f"{var}=your_" in content and not f"{var}=" == content.split(f"{var}=")[1].split('\n')[0]:
-                        self.check_pass(f"Config: {var}", "Set")
+                    pattern = f"{var}="
+                    if pattern in content:
+                        # Extract the value after the = sign
+                        lines = content.split('\n')
+                        for line in lines:
+                            if line.startswith(pattern):
+                                value = line[len(pattern):].strip()
+                                if value and not value.startswith('your_'):
+                                    self.check_pass(f"Config: {var}", "Set")
+                                else:
+                                    self.check_warn(f"Config: {var}", "Not configured")
+                                break
                     else:
-                        self.check_warn(f"Config: {var}", "Not configured")
+                        self.check_warn(f"Config: {var}", "Not found")
         else:
             self.check_fail("Environment File", f"{env_file} (not found)")
     

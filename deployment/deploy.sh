@@ -264,6 +264,8 @@ install_service() {
         sed -i "s|{{APP_DIR}}|${APP_DIR}|g" "$service_file"
         sed -i "s|{{APP_USER}}|${APP_USER}|g" "$service_file"
         sed -i "s|{{CONFIG_DIR}}|${CONFIG_DIR}|g" "$service_file"
+        sed -i "s|{{DATA_DIR}}|${DATA_DIR}|g" "$service_file"
+        sed -i "s|{{LOG_DIR}}|${LOG_DIR}|g" "$service_file"
         
         # Reload systemd
         systemctl daemon-reload

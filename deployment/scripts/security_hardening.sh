@@ -316,7 +316,7 @@ net.ipv4.tcp_syn_retries = 5
 fs.file-max = 65535
 
 # Protect against buffer overflow attacks
-kernel.exec-shield = 1
+# kernel.exec-shield = 1  # Deprecated on modern kernels
 kernel.randomize_va_space = 2
 
 # Restrict kernel pointers

@@ -169,7 +169,14 @@ def setup_database_config():
         print(f"  {i}. {db_type}")
     
     db_choice = get_input("Select database type", default="1", required=False)
-    db_type = db_types[int(db_choice) - 1] if db_choice.isdigit() and 1 <= int(db_choice) <= len(db_types) else 'sqlite'
+    if db_choice.isdigit():
+        choice_num = int(db_choice)
+        if 1 <= choice_num <= len(db_types):
+            db_type = db_types[choice_num - 1]
+        else:
+            db_type = 'sqlite'
+    else:
+        db_type = 'sqlite'
     
     config['DB_TYPE'] = db_type
     
