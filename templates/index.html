@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life is a Joke</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+        
+        .joke-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 20px 0;
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        
+        .joke-text {
+            font-size: 1.3em;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .loading {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .joke-text {
+                font-size: 1.1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>😂 Life is a Joke</h1>
+        <p class="subtitle">Click the button to brighten your day!</p>
+        
+        <div class="joke-container">
+            <p class="joke-text" id="jokeText">Click the button below to get a joke!</p>
+        </div>
+        
+        <button id="jokeBtn" onclick="getJoke()">Get a Joke</button>
+        
+        <div class="footer">
+            <p>Making the world smile, one joke at a time 🌟</p>
+        </div>
+    </div>
+    
+    <script>
+        async function getJoke() {
+            const jokeText = document.getElementById('jokeText');
+            const jokeBtn = document.getElementById('jokeBtn');
+            
+            // Add loading state
+            jokeBtn.classList.add('loading');
+            jokeBtn.disabled = true;
+            jokeText.textContent = 'Loading a joke for you...';
+            
+            try {
+                const response = await fetch('/api/joke');
+                const data = await response.json();
+                
+                // Display the joke
+                jokeText.textContent = data.joke;
+            } catch (error) {
+                jokeText.textContent = 'Oops! Failed to fetch a joke. Please try again.';
+                console.error('Error:', error);
+            } finally {
+                // Remove loading state
+                jokeBtn.classList.remove('loading');
+                jokeBtn.disabled = false;
+            }
+        }
+        
+        // Get a joke on page load
+        window.addEventListener('load', getJoke);
+    </script>
+</body>
+</html>
