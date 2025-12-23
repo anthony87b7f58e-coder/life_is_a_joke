@@ -24,7 +24,7 @@ class SentimentAnalyzer:
         }
         
         self.bearish_keywords = {
-            'bearish', 'bear', 'dump', 'crash', 'dump', 'sell', 'short',
+            'bearish', 'bear', 'dump', 'crash', 'sell', 'short',
             'red', 'loss', 'down', 'low', 'dip', 'drop', 'fall', 'panic',
             'rekt', 'liquidation', 'fud', 'fear', 'pessimistic', 'warning'
         }

@@ -29,6 +29,13 @@ def load_config(path=None):
 
 def get_redis_url():
     cfg = load_config()
+    # Safe nested access with defaults
     if isinstance(cfg, dict):
         return cfg.get('database', {}).get('redis', {}).get('url', 'redis://localhost:6379/0')
-    return getattr(cfg.database.redis, 'url', 'redis://localhost:6379/0')
+    # For AttrDict, safely navigate the hierarchy
+    database = getattr(cfg, 'database', None)
+    if database:
+        redis = getattr(database, 'redis', None)
+        if redis:
+            return getattr(redis, 'url', 'redis://localhost:6379/0')
+    return 'redis://localhost:6379/0'
