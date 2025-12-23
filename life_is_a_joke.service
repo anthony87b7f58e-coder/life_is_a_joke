@@ -1,0 +1,21 @@
+[Unit]
+Description=Life is a Joke - Web Application
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/life_is_a_joke
+Environment="PATH=/var/www/life_is_a_joke/venv/bin"
+Environment="PORT=5000"
+ExecStart=/var/www/life_is_a_joke/venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 60 app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target
