@@ -1,5 +1,5 @@
-# Core
-python>=3.9,<3.12
+# Core dependencies
+# Python 3.9+ required (checked at runtime, not via pip)
 ccxt==4.2.85
 pandas==2.1.4
 numpy==1.24.3
