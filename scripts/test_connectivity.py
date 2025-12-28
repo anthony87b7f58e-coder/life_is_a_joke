@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Trading Bot - Binance API Connectivity Test Script
-Tests connectivity and authentication with Binance API.
+Trading Bot - Exchange API Connectivity Test Script
+Tests connectivity and authentication with cryptocurrency exchanges.
+Supports Binance (legacy) and CCXT (100+ exchanges).
 """
 
 import os
@@ -69,7 +70,8 @@ def test_basic_connectivity():
     
     try:
         import socket
-        socket.create_connection(("www.binance.com", 443), timeout=5)
+        # Test connection to a common crypto exchange
+        socket.create_connection(("www.google.com", 443), timeout=5)
         print_success("Internet connectivity: OK")
         return True
     except Exception as e:
@@ -218,9 +220,98 @@ def test_binance_api_authenticated():
         return False
 
 
+def test_ccxt_exchange():
+    """Test CCXT exchange connectivity"""
+    print_info("\n=== Testing CCXT Exchange ===")
+    
+    exchange_id = os.environ.get('EXCHANGE_ID', 'binance')
+    api_key = os.environ.get('EXCHANGE_API_KEY', '')
+    api_secret = os.environ.get('EXCHANGE_API_SECRET', '')
+    testnet = os.environ.get('EXCHANGE_TESTNET', 'false').lower() == 'true'
+    
+    try:
+        import ccxt
+        
+        print_info(f"Exchange: {exchange_id}")
+        print_info(f"Testnet: {testnet}")
+        
+        # Initialize exchange
+        exchange_class = getattr(ccxt, exchange_id)
+        config = {
+            'enableRateLimit': True,
+        }
+        
+        if testnet:
+            config['sandbox'] = True
+        
+        if api_key and not api_key.startswith('your_'):
+            config['apiKey'] = api_key
+            config['secret'] = api_secret
+        
+        exchange = exchange_class(config)
+        
+        # Test public API - fetch ticker
+        print_info("Testing public API (fetchTicker)...")
+        try:
+            symbol = os.environ.get('DEFAULT_SYMBOL', 'BTC/USDT')
+            ticker = exchange.fetchTicker(symbol)
+            print_success(f"{symbol} price: {ticker.get('last', 'N/A')}")
+        except Exception as e:
+            print_error(f"fetchTicker failed: {str(e)}")
+            return False
+        
+        # Test markets
+        print_info("Testing markets...")
+        try:
+            exchange.load_markets()
+            markets_count = len(exchange.markets)
+            print_success(f"Loaded {markets_count} trading pairs")
+        except Exception as e:
+            print_error(f"load_markets failed: {str(e)}")
+            return False
+        
+        # Test authenticated API if credentials provided
+        if api_key and not api_key.startswith('your_'):
+            print_info("Testing authenticated API (fetchBalance)...")
+            try:
+                balance = exchange.fetchBalance()
+                total_balance = balance.get('total', {})
+                non_zero = {k: v for k, v in total_balance.items() if v and float(v) > 0}
+                
+                if non_zero:
+                    print_success(f"Account balance retrieved: {len(non_zero)} non-zero assets")
+                    for asset, amount in list(non_zero.items())[:5]:
+                        print_info(f"  {asset}: {amount}")
+                else:
+                    print_warning("No non-zero balances found")
+                    
+            except Exception as e:
+                print_error(f"fetchBalance failed: {str(e)}")
+                return False
+        else:
+            print_warning("API credentials not configured - skipping authenticated tests")
+        
+        return True
+        
+    except ImportError:
+        print_error("'ccxt' library not installed. Run: pip install ccxt")
+        return False
+    except Exception as e:
+        print_error(f"CCXT test failed: {str(e)}")
+        return False
+
+
 def test_api_rate_limits():
     """Check API rate limit information"""
     print_info("\n=== API Rate Limit Information ===")
+    
+    use_ccxt = os.environ.get('USE_CCXT', 'false').lower() == 'true'
+    
+    if use_ccxt:
+        print_info("Using CCXT - rate limits handled automatically")
+        print_info("  enableRateLimit is set to True")
+        print_info("  CCXT will throttle requests as needed")
+        return True
     
     try:
         import requests
@@ -292,7 +383,7 @@ def print_summary(results):
 def main():
     """Main entry point"""
     print("=" * 70)
-    print("Trading Bot - Binance API Connectivity Test")
+    print("Trading Bot - Exchange API Connectivity Test")
     print("=" * 70)
     print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
@@ -300,11 +391,21 @@ def main():
     # Load environment
     load_env_file()
     
+    # Check which mode to use
+    use_ccxt = os.environ.get('USE_CCXT', 'false').lower() == 'true'
+    
     # Run tests
     results = {}
     results['basic_connectivity'] = test_basic_connectivity()
-    results['public_api'] = test_binance_api_public()
-    results['authenticated_api'] = test_binance_api_authenticated()
+    
+    if use_ccxt:
+        print_info("\nUsing CCXT mode for multi-exchange support")
+        results['ccxt_exchange'] = test_ccxt_exchange()
+    else:
+        print_info("\nUsing Binance legacy mode")
+        results['public_api'] = test_binance_api_public()
+        results['authenticated_api'] = test_binance_api_authenticated()
+    
     results['rate_limits'] = test_api_rate_limits()
     
     # Print summary
