@@ -18,7 +18,14 @@ class Config:
         self.debug = os.getenv('DEBUG', 'false').lower() == 'true'
         self.log_level = os.getenv('LOG_LEVEL', 'INFO')
         
-        # Binance API
+        # Exchange configuration (supports multiple exchanges via CCXT)
+        self.use_ccxt = os.getenv('USE_CCXT', 'false').lower() == 'true'
+        self.exchange_id = os.getenv('EXCHANGE_ID', 'binance')  # binance, kraken, coinbase, etc.
+        self.exchange_api_key = os.getenv('EXCHANGE_API_KEY', os.getenv('BINANCE_API_KEY', ''))
+        self.exchange_api_secret = os.getenv('EXCHANGE_API_SECRET', os.getenv('BINANCE_API_SECRET', ''))
+        self.exchange_testnet = os.getenv('EXCHANGE_TESTNET', os.getenv('BINANCE_TESTNET', 'false')).lower() == 'true'
+        
+        # Binance API (for backward compatibility)
         self.binance_api_key = os.getenv('BINANCE_API_KEY', '')
         self.binance_api_secret = os.getenv('BINANCE_API_SECRET', '')
         self.binance_testnet = os.getenv('BINANCE_TESTNET', 'false').lower() == 'true'
@@ -75,11 +82,15 @@ class Config:
         """Validate configuration"""
         errors = []
         
-        if not self.binance_api_key or self.binance_api_key.startswith('your_'):
-            errors.append("BINANCE_API_KEY not configured")
+        # Validate exchange API credentials
+        api_key = self.exchange_api_key if self.use_ccxt else self.binance_api_key
+        api_secret = self.exchange_api_secret if self.use_ccxt else self.binance_api_secret
         
-        if not self.binance_api_secret or self.binance_api_secret.startswith('your_'):
-            errors.append("BINANCE_API_SECRET not configured")
+        if not api_key or api_key.startswith('your_'):
+            errors.append("Exchange API key not configured")
+        
+        if not api_secret or api_secret.startswith('your_'):
+            errors.append("Exchange API secret not configured")
         
         if self.max_position_size <= 0:
             errors.append("MAX_POSITION_SIZE must be greater than 0")

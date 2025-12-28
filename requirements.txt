@@ -1,5 +1,6 @@
 # Core dependencies
 python-binance>=1.0.19
+ccxt>=4.2.0
 python-dotenv>=1.0.0
 
 # Data processing

@@ -6,12 +6,11 @@ Main bot class that coordinates all components
 import time
 import logging
 from typing import Optional
-from binance.client import Client
-from binance.exceptions import BinanceAPIException
 
 from .config import Config
 from .database import Database
 from .risk_manager import RiskManager
+from .exchange_adapter import ExchangeAdapter
 from ..strategies.strategy_manager import StrategyManager
 
 
@@ -40,26 +39,30 @@ class TradingBot:
         self.db = Database(config)
         self.logger.info("Database initialized")
         
-        # Binance client
+        # Exchange adapter (supports multiple exchanges via CCXT or Binance legacy)
         try:
-            self.client = Client(
-                config.binance_api_key,
-                config.binance_api_secret,
-                testnet=config.binance_testnet
-            )
+            self.exchange = ExchangeAdapter(config)
             # Test connection
-            self.client.ping()
-            self.logger.info(f"Connected to Binance {'TESTNET' if config.binance_testnet else 'PRODUCTION'}")
-        except BinanceAPIException as e:
-            self.logger.error(f"Failed to connect to Binance: {e}")
+            self.exchange.ping()
+            
+            exchange_name = config.exchange_id if config.use_ccxt else 'Binance'
+            testnet_str = 'TESTNET' if config.exchange_testnet else 'PRODUCTION'
+            mode_str = 'CCXT' if config.use_ccxt else 'Legacy'
+            
+            self.logger.info(f"Connected to {exchange_name} {testnet_str} ({mode_str})")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize exchange: {e}")
             raise
+        
+        # For backward compatibility, expose exchange as client
+        self.client = self.exchange
         
         # Risk manager
         self.risk_manager = RiskManager(config, self.db)
         self.logger.info("Risk manager initialized")
         
         # Strategy manager
-        self.strategy_manager = StrategyManager(config, self.client, self.db, self.risk_manager)
+        self.strategy_manager = StrategyManager(config, self.exchange, self.db, self.risk_manager)
         self.logger.info("Strategy manager initialized")
         
         self.logger.info("Trading bot initialization complete")
@@ -69,6 +72,8 @@ class TradingBot:
         self.logger.info("=" * 70)
         self.logger.info("TRADING BOT STARTED")
         self.logger.info("=" * 70)
+        self.logger.info(f"Exchange: {self.config.exchange_id if self.config.use_ccxt else 'Binance'}")
+        self.logger.info(f"Mode: {'CCXT' if self.config.use_ccxt else 'Legacy'}")
         self.logger.info(f"Trading enabled: {self.config.trading_enabled}")
         self.logger.info(f"Default symbol: {self.config.default_symbol}")
         self.logger.info(f"Max open positions: {self.config.max_open_positions}")
@@ -79,8 +84,8 @@ class TradingBot:
         
         try:
             # Get account info
-            account = self.client.get_account()
-            self.logger.info(f"Account status: Can trade: {account['canTrade']}")
+            account = self.exchange.get_account()
+            self.logger.info(f"Account status: Can trade: {account.get('canTrade', True)}")
             
             # Main loop
             while self.running:
@@ -133,7 +138,7 @@ class TradingBot:
         """Perform internal health check"""
         try:
             # Check API connectivity
-            self.client.ping()
+            self.exchange.ping()
             
             # Check database
             self.db.health_check()
