@@ -11,12 +11,24 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add src directory and parent directory to Python path
+src_dir = Path(__file__).parent
+parent_dir = src_dir.parent
+sys.path.insert(0, str(src_dir))
+sys.path.insert(0, str(parent_dir))
 
-from core.bot import TradingBot
-from core.config import Config
-from utils.logger import setup_logger
+# Now import from the package
+try:
+    from core.bot import TradingBot
+    from core.config import Config
+    from utils.logger import setup_logger
+except ImportError as e:
+    # Fallback: try absolute imports
+    print(f"Import error: {e}")
+    print(f"Python path: {sys.path}")
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Script location: {Path(__file__).parent}")
+    sys.exit(1)
 
 
 def signal_handler(signum, frame):
