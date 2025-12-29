@@ -5,6 +5,7 @@ Sends trading alerts and notifications via Telegram
 
 import os
 import logging
+import asyncio
 from typing import Optional, Dict, Any
 from datetime import datetime
 
@@ -65,11 +66,40 @@ class TelegramNotifier:
             return False
         
         try:
-            self.bot.send_message(
-                chat_id=self.chat_id,
-                text=message,
-                parse_mode=parse_mode
-            )
+            # Run async send_message in sync context
+            loop = None
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If there's already a running loop, create a new one in a thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self.bot.send_message(
+                                chat_id=self.chat_id,
+                                text=message,
+                                parse_mode=parse_mode
+                            )
+                        )
+                        future.result(timeout=10)
+                else:
+                    loop.run_until_complete(
+                        self.bot.send_message(
+                            chat_id=self.chat_id,
+                            text=message,
+                            parse_mode=parse_mode
+                        )
+                    )
+            except RuntimeError:
+                # No event loop, create one
+                asyncio.run(
+                    self.bot.send_message(
+                        chat_id=self.chat_id,
+                        text=message,
+                        parse_mode=parse_mode
+                    )
+                )
             return True
         except TelegramError as e:
             self.logger.error(f"Failed to send Telegram message: {e}")
