@@ -5,8 +5,8 @@ Manages and executes trading strategies
 
 import logging
 from typing import List, Dict
-from .base_strategy import BaseStrategy
-from ..simple_trend import SimpleTrendStrategy
+from strategies.base_strategy import BaseStrategy
+from strategies.simple_trend import SimpleTrendStrategy
 
 
 class StrategyManager:

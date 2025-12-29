@@ -7,11 +7,11 @@ import time
 import logging
 from typing import Optional
 
-from .config import Config
-from .database import Database
-from .risk_manager import RiskManager
-from .exchange_adapter import ExchangeAdapter
-from ..strategies.strategy_manager import StrategyManager
+from core.config import Config
+from core.database import Database
+from core.risk_manager import RiskManager
+from core.exchange_adapter import ExchangeAdapter
+from strategies.strategy_manager import StrategyManager
 
 
 class TradingBot:

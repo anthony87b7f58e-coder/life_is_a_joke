@@ -5,7 +5,7 @@ Provides Bybit-specific functionality and helpers
 
 import logging
 from typing import Dict, List, Optional
-from .exchange_adapter import ExchangeAdapter
+from core.exchange_adapter import ExchangeAdapter
 
 
 class BybitHelper:
