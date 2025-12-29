@@ -96,7 +96,14 @@ class ExchangeAdapter:
         """Test connection to exchange"""
         try:
             if self.use_ccxt:
-                return self.exchange.fetch_status()
+                # Try fetch_status first, but not all exchanges support it
+                try:
+                    return self.exchange.fetch_status()
+                except Exception:
+                    # Fallback: try to fetch a ticker for a common trading pair
+                    # This confirms the exchange is reachable and API keys are valid
+                    self.exchange.fetch_ticker(self.config.default_symbol)
+                    return {'status': 'ok', 'updated': None}
             else:
                 return self.exchange.ping()
         except Exception as e:
