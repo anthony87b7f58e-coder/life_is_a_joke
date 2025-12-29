@@ -67,10 +67,10 @@ class TradingBot:
         self.logger.info("Strategy manager initialized")
         
         # Initialize Telegram notifications
-        telegram_enabled = config.get('ENABLE_NOTIFICATIONS', 'false').lower() == 'true'
+        telegram_enabled = config.enable_notifications
         if telegram_enabled:
-            telegram_token = config.get('TELEGRAM_BOT_TOKEN', '')
-            telegram_chat_id = config.get('TELEGRAM_CHAT_ID', '')
+            telegram_token = config.telegram_bot_token
+            telegram_chat_id = config.telegram_chat_id
             self.notifier = init_notifier(telegram_token, telegram_chat_id, telegram_enabled)
             if self.notifier and self.notifier.enabled:
                 self.logger.info("Telegram notifications initialized")
