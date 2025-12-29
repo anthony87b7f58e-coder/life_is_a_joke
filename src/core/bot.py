@@ -12,6 +12,7 @@ from core.database import Database
 from core.risk_manager import RiskManager
 from core.exchange_adapter import ExchangeAdapter
 from strategies.strategy_manager import StrategyManager
+from utils.notifications import init_notifier, get_notifier
 
 
 class TradingBot:
@@ -65,6 +66,21 @@ class TradingBot:
         self.strategy_manager = StrategyManager(config, self.exchange, self.db, self.risk_manager)
         self.logger.info("Strategy manager initialized")
         
+        # Initialize Telegram notifications
+        telegram_enabled = config.get('ENABLE_NOTIFICATIONS', 'false').lower() == 'true'
+        if telegram_enabled:
+            telegram_token = config.get('TELEGRAM_BOT_TOKEN', '')
+            telegram_chat_id = config.get('TELEGRAM_CHAT_ID', '')
+            self.notifier = init_notifier(telegram_token, telegram_chat_id, telegram_enabled)
+            if self.notifier and self.notifier.enabled:
+                self.logger.info("Telegram notifications initialized")
+            else:
+                self.logger.warning("Telegram notifications not available")
+                self.notifier = None
+        else:
+            self.notifier = None
+            self.logger.info("Telegram notifications disabled")
+        
         self.logger.info("Trading bot initialization complete")
     
     def start(self):
@@ -72,13 +88,23 @@ class TradingBot:
         self.logger.info("=" * 70)
         self.logger.info("TRADING BOT STARTED")
         self.logger.info("=" * 70)
-        self.logger.info(f"Exchange: {self.config.exchange_id if self.config.use_ccxt else 'Binance'}")
+        exchange_name = self.config.exchange_id if self.config.use_ccxt else 'Binance'
+        self.logger.info(f"Exchange: {exchange_name}")
         self.logger.info(f"Mode: {'CCXT' if self.config.use_ccxt else 'Legacy'}")
         self.logger.info(f"Trading enabled: {self.config.trading_enabled}")
         self.logger.info(f"Default symbol: {self.config.default_symbol}")
         self.logger.info(f"Max open positions: {self.config.max_open_positions}")
         self.logger.info(f"Max daily trades: {self.config.max_daily_trades}")
         self.logger.info("=" * 70)
+        
+        # Send startup notification
+        if self.notifier:
+            self.notifier.notify_bot_started(
+                exchange=exchange_name,
+                trading_enabled=self.config.trading_enabled,
+                max_positions=self.config.max_open_positions,
+                max_daily_trades=self.config.max_daily_trades
+            )
         
         self.running = True
         
@@ -113,7 +139,11 @@ class TradingBot:
                     self.logger.info("Shutdown requested")
                     break
                 except Exception as e:
-                    self.logger.error(f"Error in main loop: {str(e)}", exc_info=True)
+                    error_msg = str(e)
+                    self.logger.error(f"Error in main loop: {error_msg}", exc_info=True)
+                    # Send error notification
+                    if self.notifier:
+                        self.notifier.notify_error("Main Loop Error", error_msg)
                     time.sleep(60)
         
         finally:
@@ -123,6 +153,10 @@ class TradingBot:
         """Stop the trading bot"""
         self.logger.info("Stopping trading bot...")
         self.running = False
+        
+        # Send shutdown notification
+        if hasattr(self, 'notifier') and self.notifier:
+            self.notifier.notify_bot_stopped("Normal shutdown")
         
         # Close all positions if configured
         if hasattr(self, 'strategy_manager'):

@@ -7,6 +7,7 @@ import logging
 from typing import List, Dict
 from strategies.base_strategy import BaseStrategy
 from strategies.simple_trend import SimpleTrendStrategy
+from utils.notifications import get_notifier
 
 
 class StrategyManager:
@@ -151,8 +152,23 @@ class StrategyManager:
             
             self.logger.info(f"Position opened: ID {position_id}")
             
+            # Send Telegram notification
+            notifier = get_notifier()
+            if notifier:
+                notifier.notify_position_opened(
+                    symbol=symbol,
+                    side='BUY',
+                    quantity=quantity,
+                    price=price,
+                    strategy=strategy.name
+                )
+            
         except Exception as e:
             self.logger.error(f"Error executing buy order: {str(e)}", exc_info=True)
+            # Send error notification
+            notifier = get_notifier()
+            if notifier:
+                notifier.notify_error("Buy Order Failed", str(e), f"Symbol: {signal.get('symbol')}")
     
     def _execute_sell(self, signal: Dict, strategy: BaseStrategy):
         """Execute sell order"""
@@ -167,14 +183,53 @@ class StrategyManager:
             self.logger.warning("No position ID in close signal")
             return
         
-        # Update position status
-        self.db.update_position(
-            position_id,
-            status='closed',
-            closed_at='CURRENT_TIMESTAMP'
-        )
-        
-        self.logger.info(f"Position {position_id} closed")
+        try:
+            # Get position details before closing
+            position = self.db.get_position(position_id)
+            if not position:
+                self.logger.warning(f"Position {position_id} not found")
+                return
+            
+            exit_price = signal.get('price', 0)
+            entry_price = position.get('entry_price', 0)
+            quantity = position.get('quantity', 0)
+            side = position.get('side', 'BUY')
+            symbol = position.get('symbol', '')
+            
+            # Calculate P&L
+            if side == 'BUY':
+                pnl = (exit_price - entry_price) * quantity
+            else:
+                pnl = (entry_price - exit_price) * quantity
+            
+            pnl_percent = (pnl / (entry_price * quantity) * 100) if (entry_price * quantity) > 0 else 0
+            
+            # Update position status
+            self.db.update_position(
+                position_id,
+                status='closed',
+                closed_at='CURRENT_TIMESTAMP',
+                exit_price=exit_price,
+                pnl=pnl
+            )
+            
+            self.logger.info(f"Position {position_id} closed with P&L: ${pnl:.2f} ({pnl_percent:+.2f}%)")
+            
+            # Send Telegram notification
+            notifier = get_notifier()
+            if notifier:
+                notifier.notify_position_closed(
+                    symbol=symbol,
+                    side=side,
+                    quantity=quantity,
+                    entry_price=entry_price,
+                    exit_price=exit_price,
+                    pnl=pnl,
+                    pnl_percent=pnl_percent,
+                    strategy=position.get('strategy', 'Unknown')
+                )
+        except Exception as e:
+            self.logger.error(f"Error closing position {position_id}: {str(e)}", exc_info=True)
     
     def close_all_positions(self):
         """Close all open positions"""
