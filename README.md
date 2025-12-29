@@ -81,7 +81,7 @@ life_is_a_joke/
 
 - Abstract base class for exchange operations
 - CCXT integration for multiple cryptocurrency exchanges
-- Support for major exchanges: Binance, Coinbase, Kraken, FTX, Bybit, KuCoin
+- Support for major exchanges: Binance, Coinbase, Kraken, Bybit, KuCoin
 - Comprehensive trading operations: balance checking, ticker data, order placement, order management
 - Factory pattern for easy exchange instantiation
 
