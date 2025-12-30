@@ -102,7 +102,9 @@ class ExchangeAdapter:
                 except Exception:
                     # Fallback: try to fetch a ticker for a common trading pair
                     # This confirms the exchange is reachable and API keys are valid
-                    self.exchange.fetch_ticker(self.config.default_symbol)
+                    # Use first symbol from trading_symbols list to ensure single symbol
+                    test_symbol = self.config.trading_symbols[0] if self.config.trading_symbols else 'BTC/USDT'
+                    self.exchange.fetch_ticker(test_symbol)
                     return {'status': 'ok', 'updated': None}
             else:
                 return self.exchange.ping()
