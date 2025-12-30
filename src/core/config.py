@@ -43,6 +43,8 @@ class Config:
         self.trading_enabled = os.getenv('TRADING_ENABLED', 'true').lower() == 'true'
         self.trading_mode = os.getenv('TRADING_MODE', 'live')
         self.default_symbol = os.getenv('DEFAULT_SYMBOL', 'BTCUSDT')
+        self.trading_symbols = os.getenv('TRADING_SYMBOLS', '')  # Comma-separated list
+        self.active_strategy = os.getenv('ACTIVE_STRATEGY', 'enhanced')  # 'simple' or 'enhanced'
         self.max_position_size = float(os.getenv('MAX_POSITION_SIZE', '0.1'))
         self.stop_loss_percentage = float(os.getenv('STOP_LOSS_PERCENTAGE', '2.0'))
         self.take_profit_percentage = float(os.getenv('TAKE_PROFIT_PERCENTAGE', '5.0'))

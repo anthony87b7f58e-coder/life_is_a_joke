@@ -7,6 +7,7 @@ import logging
 from typing import List, Dict
 from strategies.base_strategy import BaseStrategy
 from strategies.simple_trend import SimpleTrendStrategy
+from strategies.enhanced_multi_indicator import EnhancedMultiIndicatorStrategy
 from utils.notifications import get_notifier
 
 
@@ -37,16 +38,29 @@ class StrategyManager:
     
     def _load_strategies(self):
         """Load and initialize trading strategies"""
-        # Simple trend following strategy
-        trend_strategy = SimpleTrendStrategy(
-            self.config,
-            self.client,
-            self.db,
-            self.risk_manager
-        )
-        self.strategies.append(trend_strategy)
+        # Get active strategy from config (default to enhanced)
+        active_strategy = getattr(self.config, 'active_strategy', 'enhanced').lower()
         
-        self.logger.info(f"Loaded strategy: {trend_strategy.name}")
+        if active_strategy == 'simple':
+            # Simple trend following strategy
+            strategy = SimpleTrendStrategy(
+                self.config,
+                self.client,
+                self.db,
+                self.risk_manager
+            )
+            self.strategies.append(strategy)
+            self.logger.info(f"Loaded strategy: {strategy.name}")
+        else:
+            # Enhanced multi-indicator strategy (default)
+            strategy = EnhancedMultiIndicatorStrategy(
+                self.config,
+                self.client,
+                self.db,
+                self.risk_manager
+            )
+            self.strategies.append(strategy)
+            self.logger.info(f"Loaded strategy: {strategy.name}")
     
     def evaluate_strategies(self):
         """Evaluate all active strategies"""
