@@ -1,0 +1,45 @@
+[Unit]
+Description=Trading Bot Service
+Documentation=https://github.com/anthony87b7f58e-coder/life_is_a_joke
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tradingbot
+Group=tradingbot
+WorkingDirectory={{APP_DIR}}
+EnvironmentFile={{CONFIG_DIR}}/.env
+
+# Start command - adjust based on your application entry point
+ExecStart={{APP_DIR}}/venv/bin/python {{APP_DIR}}/src/main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Performance
+Nice=0
+LimitNOFILE=65536
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{DATA_DIR}} {{LOG_DIR}} {{CONFIG_DIR}}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trading-bot
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
