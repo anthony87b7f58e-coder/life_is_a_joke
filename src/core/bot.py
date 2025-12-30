@@ -103,7 +103,8 @@ class TradingBot:
                 exchange=exchange_name,
                 trading_enabled=self.config.trading_enabled,
                 max_positions=self.config.max_open_positions,
-                max_daily_trades=self.config.max_daily_trades
+                max_daily_trades=self.config.max_daily_trades,
+                strategy=self.config.active_strategy
             )
         
         self.running = True

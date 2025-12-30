@@ -253,7 +253,7 @@ class TelegramNotifier:
     def notify_daily_summary(self, total_trades: int, winning_trades: int,
                            losing_trades: int, total_pnl: float,
                            win_rate: float, largest_win: float,
-                           largest_loss: float) -> bool:
+                           largest_loss: float, strategy: str = "Unknown") -> bool:
         """
         Send daily trading summary
         
@@ -265,6 +265,7 @@ class TelegramNotifier:
             win_rate: Win rate percentage
             largest_win: Largest winning trade
             largest_loss: Largest losing trade
+            strategy: Active trading strategy
             
         Returns:
             True if sent successfully
@@ -274,6 +275,7 @@ class TelegramNotifier:
         message = f"""
 📊 <b>Daily Summary</b>
 
+🎯 Strategy: <i>{strategy}</i>
 📈 Trades: <b>{total_trades}</b>
 ✅ Wins: <b>{winning_trades}</b>
 ❌ Losses: <b>{losing_trades}</b>
@@ -342,7 +344,8 @@ class TelegramNotifier:
         return self.send_message(message.strip())
     
     def notify_bot_started(self, exchange: str, trading_enabled: bool,
-                          max_positions: int, max_daily_trades: int) -> bool:
+                          max_positions: int, max_daily_trades: int, 
+                          strategy: str = "Unknown") -> bool:
         """
         Notify about bot startup
         
@@ -351,6 +354,7 @@ class TelegramNotifier:
             trading_enabled: Whether trading is enabled
             max_positions: Maximum open positions
             max_daily_trades: Maximum daily trades
+            strategy: Active trading strategy
             
         Returns:
             True if sent successfully
@@ -362,6 +366,7 @@ class TelegramNotifier:
 
 🏦 Exchange: <b>{exchange}</b>
 ⚡ Trading: {status}
+🎯 Strategy: <i>{strategy}</i>
 📊 Max Positions: <b>{max_positions}</b>
 📈 Max Daily Trades: <b>{max_daily_trades}</b>
 
