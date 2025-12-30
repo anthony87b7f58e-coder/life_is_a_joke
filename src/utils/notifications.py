@@ -109,7 +109,7 @@ class TelegramNotifier:
             return False
     
     def notify_position_opened(self, symbol: str, side: str, quantity: float, 
-                              price: float, strategy: str = "Unknown") -> bool:
+                              price: float, strategy: str = "Unknown", score: int = None) -> bool:
         """
         Notify about opened position
         
@@ -119,11 +119,14 @@ class TelegramNotifier:
             quantity: Position quantity
             price: Entry price
             strategy: Strategy name
+            score: Signal confidence score (0-100)
             
         Returns:
             True if sent successfully
         """
         emoji = "🟢" if side.upper() == "BUY" else "🔴"
+        
+        score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
         
         message = f"""
 {emoji} <b>Position Opened</b>
@@ -132,7 +135,7 @@ class TelegramNotifier:
 📈 Side: <b>{side.upper()}</b>
 💰 Quantity: <code>{quantity}</code>
 💵 Price: <code>${price:,.2f}</code>
-🎯 Strategy: <i>{strategy}</i>
+🎯 Strategy: <i>{strategy}</i>{score_text}
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
@@ -141,7 +144,7 @@ class TelegramNotifier:
     def notify_position_closed(self, symbol: str, side: str, quantity: float,
                               entry_price: float, exit_price: float, 
                               pnl: float, pnl_percent: float, 
-                              strategy: str = "Unknown") -> bool:
+                              strategy: str = "Unknown", score: int = None) -> bool:
         """
         Notify about closed position
         
@@ -154,6 +157,7 @@ class TelegramNotifier:
             pnl: Profit/Loss amount
             pnl_percent: Profit/Loss percentage
             strategy: Strategy name
+            score: Signal confidence score (0-100)
             
         Returns:
             True if sent successfully
@@ -161,6 +165,8 @@ class TelegramNotifier:
         profit = pnl > 0
         emoji = "✅" if profit else "❌"
         pnl_emoji = "💰" if profit else "💸"
+        
+        score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
         
         message = f"""
 {emoji} <b>Position Closed</b>
@@ -172,7 +178,7 @@ class TelegramNotifier:
 📤 Exit: <code>${exit_price:,.2f}</code>
 
 {pnl_emoji} P&L: <b>${pnl:,.2f}</b> ({pnl_percent:+.2f}%)
-🎯 Strategy: <i>{strategy}</i>
+🎯 Strategy: <i>{strategy}</i>{score_text}
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """

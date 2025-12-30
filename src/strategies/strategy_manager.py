@@ -106,6 +106,7 @@ class StrategyManager:
         try:
             symbol = signal['symbol']
             price = signal['price']
+            score = signal.get('confidence')  # Get signal score
             
             # Get account balance
             account = self.client.get_account()
@@ -166,7 +167,7 @@ class StrategyManager:
             
             self.logger.info(f"Position opened: ID {position_id}")
             
-            # Send Telegram notification
+            # Send Telegram notification with score
             notifier = get_notifier()
             if notifier:
                 notifier.notify_position_opened(
@@ -174,7 +175,8 @@ class StrategyManager:
                     side='BUY',
                     quantity=quantity,
                     price=price,
-                    strategy=strategy.name
+                    strategy=strategy.name,
+                    score=score
                 )
             
         except Exception as e:
@@ -192,6 +194,7 @@ class StrategyManager:
     def _close_position(self, signal: Dict, strategy: BaseStrategy):
         """Close an open position"""
         position_id = signal.get('position_id')
+        score = signal.get('confidence')  # Get signal score
         
         if not position_id:
             self.logger.warning("No position ID in close signal")
@@ -229,7 +232,7 @@ class StrategyManager:
             
             self.logger.info(f"Position {position_id} closed with P&L: ${pnl:.2f} ({pnl_percent:+.2f}%)")
             
-            # Send Telegram notification
+            # Send Telegram notification with score
             notifier = get_notifier()
             if notifier:
                 notifier.notify_position_closed(
@@ -240,7 +243,8 @@ class StrategyManager:
                     exit_price=exit_price,
                     pnl=pnl,
                     pnl_percent=pnl_percent,
-                    strategy=position.get('strategy', 'Unknown')
+                    strategy=position.get('strategy', 'Unknown'),
+                    score=score
                 )
         except Exception as e:
             self.logger.error(f"Error closing position {position_id}: {str(e)}", exc_info=True)
