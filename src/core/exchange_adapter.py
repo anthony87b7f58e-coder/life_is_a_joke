@@ -55,6 +55,10 @@ class ExchangeAdapter:
                 }
             }
             
+            # Bybit-specific configuration
+            if self.exchange_id == 'bybit':
+                exchange_config['options']['createMarketBuyOrderRequiresPrice'] = False
+            
             # Add testnet support for supported exchanges
             if self.config.exchange_testnet:
                 if self.exchange_id == 'binance':
@@ -291,7 +295,25 @@ class ExchangeAdapter:
                 self.logger.info(f"Creating {order_type} {side} order: {quantity} {symbol}")
                 
                 params = {}
-                if order_type.lower() == 'market':
+                
+                # Special handling for Bybit market orders
+                if self.exchange_id == 'bybit' and order_type.lower() == 'market':
+                    # Bybit requires market orders to specify amount differently
+                    # For market buy orders, we need to get current price first
+                    if side.lower() == 'buy':
+                        # Fetch current market price
+                        ticker = self.exchange.fetch_ticker(symbol)
+                        current_price = ticker['last']
+                        # Calculate quote currency amount (USDT value)
+                        quote_amount = quantity * current_price
+                        # Use createMarketBuyOrderRequiresPrice = false
+                        params['createMarketBuyOrderRequiresPrice'] = False
+                        # For Bybit, market buy orders use quote currency amount
+                        order = self.exchange.create_market_buy_order(symbol, quote_amount, params)
+                    else:
+                        # Market sell uses base currency amount
+                        order = self.exchange.create_market_sell_order(symbol, quantity, params)
+                elif order_type.lower() == 'market':
                     order = self.exchange.create_market_order(symbol, side.lower(), quantity, params)
                 else:
                     if price is None:
