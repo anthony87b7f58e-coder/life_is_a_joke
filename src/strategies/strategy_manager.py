@@ -109,16 +109,30 @@ class StrategyManager:
             score = signal.get('confidence')  # Get signal score
             
             # Get account balance
-            account = self.client.get_account()
-            # Find USDT balance
-            usdt_balance = 0
-            for balance in account['balances']:
-                if balance['asset'] == 'USDT':
-                    usdt_balance = float(balance['free'])
-                    break
+            try:
+                if self.config.use_ccxt:
+                    # CCXT balance fetch
+                    balance = self.client.fetch_balance()
+                    usdt_balance = float(balance.get('USDT', {}).get('free', 0))
+                else:
+                    # Binance legacy API
+                    account = self.client.get_account()
+                    usdt_balance = 0
+                    for bal in account['balances']:
+                        if bal['asset'] == 'USDT':
+                            usdt_balance = float(bal['free'])
+                            break
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch balance: {e}. Using default position size.")
+                usdt_balance = 0
             
             # Calculate position size
-            quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+            if usdt_balance > 0:
+                quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+            else:
+                # Fallback to configured max position size if balance unavailable
+                quantity = self.config.max_position_size
+                self.logger.info(f"Using configured MAX_POSITION_SIZE: {quantity}")
             
             # Validate trade
             trade_data = {
@@ -220,16 +234,30 @@ class StrategyManager:
             score = signal.get('confidence')  # Get signal score
             
             # Get account balance
-            account = self.client.get_account()
-            # Find USDT balance
-            usdt_balance = 0
-            for balance in account['balances']:
-                if balance['asset'] == 'USDT':
-                    usdt_balance = float(balance['free'])
-                    break
+            try:
+                if self.config.use_ccxt:
+                    # CCXT balance fetch
+                    balance = self.client.fetch_balance()
+                    usdt_balance = float(balance.get('USDT', {}).get('free', 0))
+                else:
+                    # Binance legacy API
+                    account = self.client.get_account()
+                    usdt_balance = 0
+                    for bal in account['balances']:
+                        if bal['asset'] == 'USDT':
+                            usdt_balance = float(bal['free'])
+                            break
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch balance: {e}. Using default position size.")
+                usdt_balance = 0
             
             # Calculate position size
-            quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+            if usdt_balance > 0:
+                quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+            else:
+                # Fallback to configured max position size if balance unavailable
+                quantity = self.config.max_position_size
+                self.logger.info(f"Using configured MAX_POSITION_SIZE: {quantity}")
             
             # Validate trade
             trade_data = {
