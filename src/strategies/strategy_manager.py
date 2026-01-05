@@ -307,11 +307,6 @@ class StrategyManager:
                 # Fallback to configured max position size if balance unavailable
                 quantity = self.config.max_position_size
                 self.logger.warning(f"Balance is 0 or unavailable, using configured MAX_POSITION_SIZE: {quantity}")
-                quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
-            else:
-                # Fallback to configured max position size if balance unavailable
-                quantity = self.config.max_position_size
-                self.logger.info(f"Using configured MAX_POSITION_SIZE: {quantity}")
             
             # Check minimum order size requirements
             try:
