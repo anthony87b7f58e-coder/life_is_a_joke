@@ -113,7 +113,15 @@ class StrategyManager:
                 if self.config.use_ccxt:
                     # CCXT balance fetch
                     balance = self.client.fetch_balance()
-                    usdt_balance = float(balance.get('USDT', {}).get('free', 0))
+                    # CCXT balance structure: balance['free']['USDT'] or balance['USDT']['free']
+                    # Try both access patterns for maximum compatibility
+                    if 'free' in balance and isinstance(balance['free'], dict):
+                        usdt_balance = float(balance['free'].get('USDT', 0))
+                    elif 'USDT' in balance and isinstance(balance['USDT'], dict):
+                        usdt_balance = float(balance['USDT'].get('free', 0))
+                    else:
+                        usdt_balance = 0
+                    self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
                 else:
                     # Binance legacy API
                     account = self.client.get_account()
@@ -247,7 +255,15 @@ class StrategyManager:
                 if self.config.use_ccxt:
                     # CCXT balance fetch
                     balance = self.client.fetch_balance()
-                    usdt_balance = float(balance.get('USDT', {}).get('free', 0))
+                    # CCXT balance structure: balance['free']['USDT'] or balance['USDT']['free']
+                    # Try both access patterns for maximum compatibility
+                    if 'free' in balance and isinstance(balance['free'], dict):
+                        usdt_balance = float(balance['free'].get('USDT', 0))
+                    elif 'USDT' in balance and isinstance(balance['USDT'], dict):
+                        usdt_balance = float(balance['USDT'].get('free', 0))
+                    else:
+                        usdt_balance = 0
+                    self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
                 else:
                     # Binance legacy API
                     account = self.client.get_account()
