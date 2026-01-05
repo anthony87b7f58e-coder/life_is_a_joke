@@ -276,8 +276,8 @@ class ExchangeAdapter:
                 # Apply precision rules
                 precision = market.get('precision', {})
                 if 'amount' in precision and precision['amount'] is not None:
-                    # Round to exchange precision
-                    quantity = round(quantity, precision['amount'])
+                    # Round to exchange precision (convert to int for round function)
+                    quantity = round(quantity, int(precision['amount']))
                 
                 self.logger.info(f"Creating {order_type} {side} order: {quantity} {symbol}")
                 
