@@ -205,6 +205,31 @@ class ExchangeAdapter:
         """
         try:
             if self.use_ccxt:
+                # Validate market exists
+                if symbol not in self.exchange.markets:
+                    raise ValueError(f"Symbol {symbol} not available on {self.exchange_id}")
+                
+                market = self.exchange.markets[symbol]
+                
+                # Validate and adjust quantity to meet exchange limits
+                min_qty = market.get('limits', {}).get('amount', {}).get('min', 0)
+                max_qty = market.get('limits', {}).get('amount', {}).get('max', float('inf'))
+                
+                if quantity < min_qty:
+                    self.logger.warning(f"Quantity {quantity} below minimum {min_qty}, adjusting to minimum")
+                    quantity = min_qty
+                elif quantity > max_qty:
+                    self.logger.warning(f"Quantity {quantity} above maximum {max_qty}, adjusting to maximum")
+                    quantity = max_qty
+                
+                # Apply precision rules
+                precision = market.get('precision', {})
+                if 'amount' in precision and precision['amount'] is not None:
+                    # Round to exchange precision
+                    quantity = round(quantity, precision['amount'])
+                
+                self.logger.info(f"Creating {order_type} {side} order: {quantity} {symbol}")
+                
                 params = {}
                 if order_type.lower() == 'market':
                     order = self.exchange.create_market_order(symbol, side.lower(), quantity, params)
@@ -212,6 +237,8 @@ class ExchangeAdapter:
                     if price is None:
                         raise ValueError("Price required for limit orders")
                     order = self.exchange.create_limit_order(symbol, side.lower(), quantity, price, params)
+                
+                self.logger.info(f"Order created successfully: ID={order.get('id')}, Status={order.get('status')}, Filled={order.get('filled', 0)}")
                 
                 return {
                     'orderId': order['id'],
@@ -240,8 +267,32 @@ class ExchangeAdapter:
                         price=price
                     )
         except Exception as e:
-            self.logger.error(f"Failed to create order: {str(e)}")
-            raise
+            error_msg = f"Failed to create order: {type(e).__name__}: {str(e)}"
+            self.logger.error(error_msg)
+            self.logger.error(f"Order details - Symbol: {symbol}, Side: {side}, Type: {order_type}, Quantity: {quantity}, Price: {price}")
+            raise Exception(error_msg)
+    
+    def get_min_order_size(self, symbol: str) -> float:
+        """
+        Get minimum order size for a symbol
+        
+        Args:
+            symbol: Trading pair symbol
+            
+        Returns:
+            Minimum order size in base currency
+        """
+        try:
+            if self.use_ccxt and symbol in self.exchange.markets:
+                market = self.exchange.markets[symbol]
+                min_amount = market.get('limits', {}).get('amount', {}).get('min', 0.001)
+                return min_amount
+            else:
+                # Default fallback
+                return 0.001
+        except Exception as e:
+            self.logger.warning(f"Could not get min order size for {symbol}: {e}, using default 0.001")
+            return 0.001
     
     def get_exchange_info(self):
         """Get exchange information"""

@@ -134,6 +134,15 @@ class StrategyManager:
                 quantity = self.config.max_position_size
                 self.logger.info(f"Using configured MAX_POSITION_SIZE: {quantity}")
             
+            # Check minimum order size requirements
+            try:
+                min_order_size = self.client.get_min_order_size(symbol)
+                if quantity < min_order_size:
+                    self.logger.warning(f"Calculated quantity {quantity} is below minimum {min_order_size}, adjusting")
+                    quantity = min_order_size
+            except Exception as e:
+                self.logger.warning(f"Could not check minimum order size: {e}")
+            
             # Validate trade
             trade_data = {
                 'symbol': symbol,
@@ -258,6 +267,15 @@ class StrategyManager:
                 # Fallback to configured max position size if balance unavailable
                 quantity = self.config.max_position_size
                 self.logger.info(f"Using configured MAX_POSITION_SIZE: {quantity}")
+            
+            # Check minimum order size requirements
+            try:
+                min_order_size = self.client.get_min_order_size(symbol)
+                if quantity < min_order_size:
+                    self.logger.warning(f"Calculated quantity {quantity} is below minimum {min_order_size}, adjusting")
+                    quantity = min_order_size
+            except Exception as e:
+                self.logger.warning(f"Could not check minimum order size: {e}")
             
             # Validate trade
             trade_data = {
