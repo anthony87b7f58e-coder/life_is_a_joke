@@ -92,6 +92,52 @@ class ExchangeAdapter:
             self.logger.error(f"Failed to connect to Binance: {e}")
             raise
     
+    def normalize_symbol(self, symbol: str) -> str:
+        """
+        Normalize symbol format for the exchange
+        
+        CCXT uses unified format with slash (BTC/USDT)
+        Legacy Binance uses no slash (BTCUSDT)
+        
+        Args:
+            symbol: Symbol in any format (BTCUSDT or BTC/USDT)
+            
+        Returns:
+            Symbol in the correct format for the exchange
+        """
+        if self.use_ccxt:
+            # CCXT needs slash format
+            if '/' not in symbol:
+                # Try to find matching market by checking all possibilities
+                # Common quote currencies
+                for quote in ['USDT', 'USD', 'BUSD', 'BTC', 'ETH', 'BNB']:
+                    if symbol.endswith(quote):
+                        base = symbol[:-len(quote)]
+                        normalized = f"{base}/{quote}"
+                        if normalized in self.exchange.markets:
+                            return normalized
+                
+                # If no match found, try the most common quote currency
+                if symbol.endswith('USDT'):
+                    return f"{symbol[:-4]}/USDT"
+                elif symbol.endswith('USD'):
+                    return f"{symbol[:-3]}/USD"
+                else:
+                    # Default fallback - try to split intelligently
+                    # Most symbols are like BTCUSDT, ETHUSDT, etc.
+                    for i in range(2, len(symbol) - 2):
+                        possible_base = symbol[:i]
+                        possible_quote = symbol[i:]
+                        test_symbol = f"{possible_base}/{possible_quote}"
+                        if test_symbol in self.exchange.markets:
+                            return test_symbol
+            return symbol
+        else:
+            # Legacy Binance needs no slash
+            if '/' in symbol:
+                return symbol.replace('/', '')
+            return symbol
+    
     def ping(self):
         """Test connection to exchange"""
         try:
@@ -141,6 +187,7 @@ class ExchangeAdapter:
         """Get ticker for a symbol"""
         try:
             if self.use_ccxt:
+                symbol = self.normalize_symbol(symbol)
                 ticker = self.exchange.fetch_ticker(symbol)
                 return {
                     'symbol': symbol,
@@ -156,6 +203,7 @@ class ExchangeAdapter:
         """Get candlestick data"""
         try:
             if self.use_ccxt:
+                symbol = self.normalize_symbol(symbol)
                 # Convert Binance-style interval to CCXT timeframe
                 timeframe_map = {
                     '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
@@ -197,7 +245,7 @@ class ExchangeAdapter:
         Create an order
         
         Args:
-            symbol: Trading pair symbol
+            symbol: Trading pair symbol (will be normalized to exchange format)
             side: 'buy' or 'sell'
             order_type: 'market' or 'limit'
             quantity: Amount to trade
@@ -205,6 +253,9 @@ class ExchangeAdapter:
         """
         try:
             if self.use_ccxt:
+                # Normalize symbol to CCXT format
+                symbol = self.normalize_symbol(symbol)
+                
                 # Validate market exists
                 if symbol not in self.exchange.markets:
                     raise ValueError(f"Symbol {symbol} not available on {self.exchange_id}")
@@ -277,16 +328,21 @@ class ExchangeAdapter:
         Get minimum order size for a symbol
         
         Args:
-            symbol: Trading pair symbol
+            symbol: Trading pair symbol (will be normalized)
             
         Returns:
             Minimum order size in base currency
         """
         try:
-            if self.use_ccxt and symbol in self.exchange.markets:
-                market = self.exchange.markets[symbol]
-                min_amount = market.get('limits', {}).get('amount', {}).get('min', 0.001)
-                return min_amount
+            if self.use_ccxt:
+                symbol = self.normalize_symbol(symbol)
+                if symbol in self.exchange.markets:
+                    market = self.exchange.markets[symbol]
+                    min_amount = market.get('limits', {}).get('amount', {}).get('min', 0.001)
+                    return min_amount
+                else:
+                    # Default fallback
+                    return 0.001
             else:
                 # Default fallback
                 return 0.001
