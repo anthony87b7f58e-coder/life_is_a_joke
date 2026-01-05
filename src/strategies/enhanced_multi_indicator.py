@@ -80,17 +80,16 @@ class EnhancedMultiIndicatorStrategy(BaseStrategy):
     
     def _get_trading_symbols(self) -> List[str]:
         """Get list of symbols to trade"""
-        # Check if TRADING_SYMBOLS is configured
-        symbols_str = getattr(self.config, 'trading_symbols', None)
+        # Get trading_symbols from config (already parsed as list in config.py)
+        trading_symbols = getattr(self.config, 'trading_symbols', None)
         
-        if symbols_str and isinstance(symbols_str, str):
-            # Parse comma-separated list
-            symbols = [s.strip() for s in symbols_str.split(',') if s.strip()]
-            if symbols:
-                return symbols
+        # config.trading_symbols is already a list
+        if trading_symbols and isinstance(trading_symbols, list) and len(trading_symbols) > 0:
+            return trading_symbols
         
-        # Fallback to default symbol
-        return [self.config.default_symbol]
+        # Fallback to default symbol if trading_symbols is not set
+        default_symbol = getattr(self.config, 'default_symbol', 'BTCUSDT')
+        return [default_symbol]
     
     def _analyze_symbol(self, symbol: str) -> List[Dict]:
         """Analyze a single symbol with multiple indicators"""
