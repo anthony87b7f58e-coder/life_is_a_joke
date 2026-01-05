@@ -406,3 +406,22 @@ class ExchangeAdapter:
     def get_supported_exchanges(self) -> List[str]:
         """Get list of supported exchanges"""
         return ccxt.exchanges
+    
+    def fetch_balance(self):
+        """
+        Fetch account balance
+        
+        Returns:
+            Dictionary with balance information
+        """
+        try:
+            if self.use_ccxt:
+                # CCXT unified balance fetch
+                balance = self.exchange.fetch_balance()
+                return balance
+            else:
+                # Binance legacy API
+                return self.exchange.get_account()
+        except Exception as e:
+            self.logger.error(f"Failed to fetch balance: {str(e)}")
+            raise
