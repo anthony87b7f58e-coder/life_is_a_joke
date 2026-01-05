@@ -279,12 +279,12 @@ class ExchangeAdapter:
                     # Round to exchange precision (convert to int for round function)
                     precision_decimals = int(precision['amount'])
                     rounded_qty = round(quantity, precision_decimals)
-                    # Ensure rounding doesn't reduce quantity to zero
+                    # Ensure rounding doesn't reduce quantity to zero or too small
                     if rounded_qty == 0 and quantity > 0:
-                        # If precision rounding results in 0, use minimum quantity or original
-                        if min_qty > 0:
-                            quantity = min_qty
-                        # Otherwise keep original quantity (exchange will handle precision)
+                        # If precision rounding results in 0, keep original quantity
+                        # The exchange will reject if it's truly invalid
+                        self.logger.warning(f"Precision rounding resulted in 0, keeping original quantity {quantity}")
+                        # Don't change quantity - let exchange handle it or reject with clear error
                     else:
                         quantity = rounded_qty
                 
