@@ -140,10 +140,36 @@ class StrategyManager:
             
             self.logger.info(f"Executing BUY: {quantity} {symbol} at {price} (SL: {stop_loss}, TP: {take_profit})")
             
-            # Place order (demo mode for now)
-            if self.config.trading_mode == 'live' and self.config.trading_enabled:
-                # Real order would go here
-                self.logger.warning("Live trading not fully implemented - simulating order")
+            # Place order
+            order_id = None
+            if self.config.trading_enabled:
+                try:
+                    # Place market buy order
+                    order = self.client.create_order(
+                        symbol=symbol,
+                        side='buy',
+                        order_type='market',
+                        quantity=quantity
+                    )
+                    order_id = order.get('orderId')
+                    executed_price = float(order.get('price', price))
+                    executed_qty = float(order.get('executedQty', quantity))
+                    
+                    self.logger.info(f"BUY order executed: Order ID {order_id}, Price: {executed_price}, Quantity: {executed_qty}")
+                    
+                    # Update values with actual execution data
+                    price = executed_price
+                    quantity = executed_qty
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to place BUY order: {str(e)}")
+                    # Send error notification
+                    notifier = get_notifier()
+                    if notifier:
+                        notifier.notify_error("Order Execution Failed", str(e), f"BUY {symbol}")
+                    return
+            else:
+                self.logger.warning("Trading disabled - simulating order")
             
             # Record position in database
             position_id = self.db.create_position({
@@ -187,9 +213,115 @@ class StrategyManager:
                 notifier.notify_error("Buy Order Failed", str(e), f"Symbol: {signal.get('symbol')}")
     
     def _execute_sell(self, signal: Dict, strategy: BaseStrategy):
-        """Execute sell order"""
-        # Similar to buy but for selling
-        self.logger.info(f"SELL signal received for {signal.get('symbol')} (not implemented)")
+        """Execute sell order (short position)"""
+        try:
+            symbol = signal['symbol']
+            price = signal['price']
+            score = signal.get('confidence')  # Get signal score
+            
+            # Get account balance
+            account = self.client.get_account()
+            # Find USDT balance
+            usdt_balance = 0
+            for balance in account['balances']:
+                if balance['asset'] == 'USDT':
+                    usdt_balance = float(balance['free'])
+                    break
+            
+            # Calculate position size
+            quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+            
+            # Validate trade
+            trade_data = {
+                'symbol': symbol,
+                'side': 'SELL',
+                'price': price,
+                'quantity': quantity,
+                'is_opening': True
+            }
+            
+            is_valid, error = self.risk_manager.validate_trade(trade_data)
+            if not is_valid:
+                self.logger.warning(f"Trade validation failed: {error}")
+                return
+            
+            # Calculate stop loss and take profit
+            stop_loss = self.risk_manager.calculate_stop_loss(price, 'SELL')
+            take_profit = self.risk_manager.calculate_take_profit(price, 'SELL')
+            
+            self.logger.info(f"Executing SELL: {quantity} {symbol} at {price} (SL: {stop_loss}, TP: {take_profit})")
+            
+            # Place order
+            order_id = None
+            if self.config.trading_enabled:
+                try:
+                    # Place market sell order
+                    order = self.client.create_order(
+                        symbol=symbol,
+                        side='sell',
+                        order_type='market',
+                        quantity=quantity
+                    )
+                    order_id = order.get('orderId')
+                    executed_price = float(order.get('price', price))
+                    executed_qty = float(order.get('executedQty', quantity))
+                    
+                    self.logger.info(f"SELL order executed: Order ID {order_id}, Price: {executed_price}, Quantity: {executed_qty}")
+                    
+                    # Update values with actual execution data
+                    price = executed_price
+                    quantity = executed_qty
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to place SELL order: {str(e)}")
+                    # Send error notification
+                    notifier = get_notifier()
+                    if notifier:
+                        notifier.notify_error("Order Execution Failed", str(e), f"SELL {symbol}")
+                    return
+            else:
+                self.logger.warning("Trading disabled - simulating order")
+            
+            # Record position in database
+            position_id = self.db.create_position({
+                'symbol': symbol,
+                'side': 'SELL',
+                'entry_price': price,
+                'quantity': quantity,
+                'stop_loss': stop_loss,
+                'take_profit': take_profit,
+                'strategy': strategy.name
+            })
+            
+            # Record trade
+            self.db.record_trade({
+                'symbol': symbol,
+                'side': 'SELL',
+                'price': price,
+                'quantity': quantity,
+                'strategy': strategy.name
+            })
+            
+            self.logger.info(f"Position opened: ID {position_id}")
+            
+            # Send Telegram notification with score
+            notifier = get_notifier()
+            if notifier:
+                notifier.notify_position_opened(
+                    symbol=symbol,
+                    side='SELL',
+                    quantity=quantity,
+                    price=price,
+                    strategy=strategy.name,
+                    score=score
+                )
+            
+        except Exception as e:
+            self.logger.error(f"Error executing sell order: {str(e)}", exc_info=True)
+            # Send error notification
+            notifier = get_notifier()
+            if notifier:
+                notifier.notify_error("Sell Order Failed", str(e), f"Symbol: {signal.get('symbol')}")
     
     def _close_position(self, signal: Dict, strategy: BaseStrategy):
         """Close an open position"""
@@ -212,6 +344,33 @@ class StrategyManager:
             quantity = position.get('quantity', 0)
             side = position.get('side', 'BUY')
             symbol = position.get('symbol', '')
+            
+            # Close position on exchange
+            order_id = None
+            if self.config.trading_enabled:
+                try:
+                    # Close position with opposite order
+                    close_side = 'sell' if side == 'BUY' else 'buy'
+                    order = self.client.create_order(
+                        symbol=symbol,
+                        side=close_side,
+                        order_type='market',
+                        quantity=quantity
+                    )
+                    order_id = order.get('orderId')
+                    exit_price = float(order.get('price', exit_price))
+                    
+                    self.logger.info(f"Position closed: Order ID {order_id}, Exit price: {exit_price}")
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to close position on exchange: {str(e)}")
+                    # Send error notification
+                    notifier = get_notifier()
+                    if notifier:
+                        notifier.notify_error("Position Close Failed", str(e), f"{symbol} Position ID: {position_id}")
+                    return
+            else:
+                self.logger.warning("Trading disabled - simulating position close")
             
             # Calculate P&L
             if side == 'BUY':
@@ -257,13 +416,32 @@ class StrategyManager:
         
         for position in open_positions:
             try:
-                # Close position logic here
+                symbol = position.get('symbol')
+                quantity = position.get('quantity', 0)
+                side = position.get('side', 'BUY')
+                
+                # Close position on exchange
+                if self.config.trading_enabled:
+                    try:
+                        # Close position with opposite order
+                        close_side = 'sell' if side == 'BUY' else 'buy'
+                        order = self.client.create_order(
+                            symbol=symbol,
+                            side=close_side,
+                            order_type='market',
+                            quantity=quantity
+                        )
+                        self.logger.info(f"Closed position {position['id']} on exchange: Order ID {order.get('orderId')}")
+                    except Exception as e:
+                        self.logger.error(f"Failed to close position {position['id']} on exchange: {str(e)}")
+                
+                # Update database
                 self.db.update_position(
                     position['id'],
                     status='closed',
                     closed_at='CURRENT_TIMESTAMP'
                 )
-                self.logger.info(f"Closed position: {position['symbol']}")
+                self.logger.info(f"Closed position in database: {position['symbol']}")
             except Exception as e:
                 self.logger.error(f"Error closing position {position['id']}: {str(e)}")
         
