@@ -109,27 +109,38 @@ class StrategyManager:
             score = signal.get('confidence')  # Get signal score
             
             # Get account balance
+            usdt_balance = 0
             try:
                 if self.config.use_ccxt:
                     # CCXT balance fetch
                     balance = self.client.fetch_balance()
+                    self.logger.debug(f"Balance structure keys: {list(balance.keys())}")
+                    
                     # CCXT balance structure: balance['free']['USDT'] or balance['USDT']['free']
                     # Try both access patterns for maximum compatibility
-                    if 'free' in balance and isinstance(balance['free'], dict):
-                        usdt_balance = float(balance['free'].get('USDT', 0))
-                    elif 'USDT' in balance and isinstance(balance['USDT'], dict):
-                        usdt_balance = float(balance['USDT'].get('free', 0))
-                    else:
-                        usdt_balance = 0
+                    try:
+                        if 'free' in balance and isinstance(balance['free'], dict) and 'USDT' in balance['free']:
+                            usdt_balance = float(balance['free']['USDT'])
+                            self.logger.debug(f"Found USDT in balance['free']['USDT']: {usdt_balance}")
+                        elif 'USDT' in balance and isinstance(balance['USDT'], dict) and 'free' in balance['USDT']:
+                            usdt_balance = float(balance['USDT']['free'])
+                            self.logger.debug(f"Found USDT in balance['USDT']['free']: {usdt_balance}")
+                        else:
+                            self.logger.warning(f"Could not find USDT in expected locations. Balance keys: {list(balance.keys())}")
+                            if 'free' in balance and isinstance(balance['free'], dict):
+                                self.logger.debug(f"balance['free'] currencies: {list(balance['free'].keys())}")
+                    except (KeyError, TypeError, ValueError) as e:
+                        self.logger.warning(f"Error extracting USDT balance: {e}")
+                    
                     self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
                 else:
                     # Binance legacy API
                     account = self.client.get_account()
-                    usdt_balance = 0
                     for bal in account['balances']:
                         if bal['asset'] == 'USDT':
                             usdt_balance = float(bal['free'])
                             break
+                    self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
             except Exception as e:
                 self.logger.warning(f"Failed to fetch balance: {e}. Using default position size.")
                 usdt_balance = 0
@@ -137,10 +148,11 @@ class StrategyManager:
             # Calculate position size
             if usdt_balance > 0:
                 quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+                self.logger.info(f"Calculated position size based on balance: {quantity}")
             else:
                 # Fallback to configured max position size if balance unavailable
                 quantity = self.config.max_position_size
-                self.logger.info(f"Using configured MAX_POSITION_SIZE: {quantity}")
+                self.logger.warning(f"Balance is 0 or unavailable, using configured MAX_POSITION_SIZE: {quantity}")
             
             # Check minimum order size requirements
             try:
@@ -251,33 +263,50 @@ class StrategyManager:
             score = signal.get('confidence')  # Get signal score
             
             # Get account balance
+            usdt_balance = 0
             try:
                 if self.config.use_ccxt:
                     # CCXT balance fetch
                     balance = self.client.fetch_balance()
+                    self.logger.debug(f"Balance structure keys: {list(balance.keys())}")
+                    
                     # CCXT balance structure: balance['free']['USDT'] or balance['USDT']['free']
                     # Try both access patterns for maximum compatibility
-                    if 'free' in balance and isinstance(balance['free'], dict):
-                        usdt_balance = float(balance['free'].get('USDT', 0))
-                    elif 'USDT' in balance and isinstance(balance['USDT'], dict):
-                        usdt_balance = float(balance['USDT'].get('free', 0))
-                    else:
-                        usdt_balance = 0
+                    try:
+                        if 'free' in balance and isinstance(balance['free'], dict) and 'USDT' in balance['free']:
+                            usdt_balance = float(balance['free']['USDT'])
+                            self.logger.debug(f"Found USDT in balance['free']['USDT']: {usdt_balance}")
+                        elif 'USDT' in balance and isinstance(balance['USDT'], dict) and 'free' in balance['USDT']:
+                            usdt_balance = float(balance['USDT']['free'])
+                            self.logger.debug(f"Found USDT in balance['USDT']['free']: {usdt_balance}")
+                        else:
+                            self.logger.warning(f"Could not find USDT in expected locations. Balance keys: {list(balance.keys())}")
+                            if 'free' in balance and isinstance(balance['free'], dict):
+                                self.logger.debug(f"balance['free'] currencies: {list(balance['free'].keys())}")
+                    except (KeyError, TypeError, ValueError) as e:
+                        self.logger.warning(f"Error extracting USDT balance: {e}")
+                    
                     self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
                 else:
                     # Binance legacy API
                     account = self.client.get_account()
-                    usdt_balance = 0
                     for bal in account['balances']:
                         if bal['asset'] == 'USDT':
                             usdt_balance = float(bal['free'])
                             break
+                    self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
             except Exception as e:
                 self.logger.warning(f"Failed to fetch balance: {e}. Using default position size.")
                 usdt_balance = 0
             
             # Calculate position size
             if usdt_balance > 0:
+                quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+                self.logger.info(f"Calculated position size based on balance: {quantity}")
+            else:
+                # Fallback to configured max position size if balance unavailable
+                quantity = self.config.max_position_size
+                self.logger.warning(f"Balance is 0 or unavailable, using configured MAX_POSITION_SIZE: {quantity}")
                 quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
             else:
                 # Fallback to configured max position size if balance unavailable
