@@ -299,13 +299,23 @@ class ExchangeAdapter:
                 # Special handling for Bybit market orders
                 if self.exchange_id == 'bybit' and order_type.lower() == 'market':
                     # Bybit requires market orders to specify amount differently
-                    # For market buy orders, we need to get current price first
+                    # For market buy orders, we need to specify the quote currency amount (USDT value)
                     if side.lower() == 'buy':
                         # Fetch current market price
                         ticker = self.exchange.fetch_ticker(symbol)
                         current_price = ticker['last']
-                        # Calculate quote currency amount (USDT value)
+                        # Calculate quote currency amount (USDT value to spend)
+                        # quantity is in base currency, convert to quote currency
                         quote_amount = quantity * current_price
+                        
+                        # Bybit typically requires minimum $5-10 order value
+                        min_order_value = 5.0  # Minimum $5 USD
+                        if quote_amount < min_order_value:
+                            self.logger.warning(f"Order value ${quote_amount:.2f} below minimum ${min_order_value}, adjusting")
+                            quote_amount = min_order_value
+                            quantity = quote_amount / current_price
+                        
+                        self.logger.info(f"Bybit market buy: {quantity:.6f} {symbol.split('/')[0]} = ${quote_amount:.2f} USDT at price ${current_price:.4f}")
                         # Use createMarketBuyOrderRequiresPrice = false
                         params['createMarketBuyOrderRequiresPrice'] = False
                         # For Bybit, market buy orders use quote currency amount
