@@ -316,13 +316,23 @@ class ExchangeAdapter:
                             quantity = quote_amount / current_price
                         
                         self.logger.info(f"Bybit market buy: {quantity:.6f} {symbol.split('/')[0]} = ${quote_amount:.2f} USDT at price ${current_price:.4f}")
-                        # Use createMarketBuyOrderRequiresPrice = false
-                        params['createMarketBuyOrderRequiresPrice'] = False
-                        # For Bybit, market buy orders use quote currency amount
-                        order = self.exchange.create_market_buy_order(symbol, quote_amount, params)
+                        # For Bybit, use create_order with specific params for market buy
+                        # Use 'quoteOrderQty' to specify USDT amount to spend
+                        order = self.exchange.create_order(
+                            symbol=symbol,
+                            type='market',
+                            side='buy',
+                            amount=None,  # Not used when quoteOrderQty is specified
+                            params={'quoteOrderQty': quote_amount}
+                        )
                     else:
                         # Market sell uses base currency amount
-                        order = self.exchange.create_market_sell_order(symbol, quantity, params)
+                        order = self.exchange.create_order(
+                            symbol=symbol,
+                            type='market',
+                            side='sell',
+                            amount=quantity
+                        )
                 elif order_type.lower() == 'market':
                     order = self.exchange.create_market_order(symbol, side.lower(), quantity, params)
                 else:
