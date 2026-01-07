@@ -98,7 +98,11 @@ class CCXTExchangeManager(ExchangeManager):
 
             self.exchange = exchange_class(config)
             # Load markets to ensure symbol data is available
-            self.exchange.load_markets()
+            try:
+                self.exchange.load_markets()
+            except Exception as e:
+                logger.warning(f"Failed to load markets: {str(e)}")
+                # Continue anyway - markets will be loaded on first use
             self.is_connected = True
             logger.info(f"Successfully connected to {self.exchange_name}")
             return True
