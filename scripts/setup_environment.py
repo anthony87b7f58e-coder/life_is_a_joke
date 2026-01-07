@@ -1,255 +1,328 @@
 #!/usr/bin/env python3
 """
-Environment setup script
-Creates .env file with all required variables
+Trading Bot - Interactive Environment Configuration Script
+This script helps users configure their trading bot environment interactively.
 """
+
 import os
 import sys
+import getpass
+import re
 from pathlib import Path
 
 
-def create_env_file():
-    """Create .env file with all required environment variables"""
-    
-    env_template = """# ============================================================
-# CRYPTO TRADING BOT - ENVIRONMENT CONFIGURATION
-# ============================================================
-# IMPORTANT: Never commit this file to version control!
-# Get Binance Testnet API keys from: https://testnet.binance.vision/
-# ============================================================
+class Colors:
+    """ANSI color codes for terminal output"""
+    BLUE = '\033[0;34m'
+    GREEN = '\033[0;32m'
+    YELLOW = '\033[1;33m'
+    RED = '\033[0;31m'
+    NC = '\033[0m'  # No Color
 
-# ============================================================
-# ENVIRONMENT
-# ============================================================
-ENVIRONMENT=paper  # Options: paper, test, production
-LOG_LEVEL=INFO     # Options: DEBUG, INFO, WARNING, ERROR
-TIMEZONE=UTC
 
-# ============================================================
-# EXCHANGE API CREDENTIALS
-# ============================================================
-# Binance Testnet (for paper trading)
-BINANCE_API_KEY=your_binance_testnet_api_key_here
-BINANCE_API_SECRET=your_binance_testnet_secret_here
+def print_info(message):
+    """Print info message"""
+    print(f"{Colors.BLUE}[INFO]{Colors.NC} {message}")
 
-# Binance Production (ONLY use after thorough testing!)
-# BINANCE_PROD_API_KEY=
-# BINANCE_PROD_API_SECRET=
 
-# Other exchanges (optional)
-# BYBIT_API_KEY=
-# BYBIT_API_SECRET=
+def print_success(message):
+    """Print success message"""
+    print(f"{Colors.GREEN}[SUCCESS]{Colors.NC} {message}")
 
-# ============================================================
-# DATABASE
-# ============================================================
-# Redis (for caching and task queue)
-REDIS_URL=redis://localhost:6379/0
-REDIS_PASSWORD=
 
-# PostgreSQL (for persistent storage)
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=trading_bot
-POSTGRES_USER=trading_bot_user
-POSTGRES_PASSWORD=change_this_password
+def print_warning(message):
+    """Print warning message"""
+    print(f"{Colors.YELLOW}[WARNING]{Colors.NC} {message}")
 
-# Database URLs (auto-generated from above, or set manually)
-DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
 
-# ============================================================
-# MONITORING & ALERTING
-# ============================================================
-# Prometheus
-PROMETHEUS_PORT=8001
-PROMETHEUS_ENABLED=true
+def print_error(message):
+    """Print error message"""
+    print(f"{Colors.RED}[ERROR]{Colors.NC} {message}")
 
-# Grafana
-GRAFANA_PORT=3000
-GRAFANA_ADMIN_PASSWORD=change_this_password
 
-# ============================================================
-# NOTIFICATIONS
-# ============================================================
-# Telegram Bot
-TELEGRAM_TOKEN=
-TELEGRAM_CHAT_ID=
-
-# Email (SMTP)
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=
-SMTP_PASSWORD=
-SMTP_FROM_EMAIL=
-SMTP_TO_EMAILS=admin@example.com
-
-# ============================================================
-# SECURITY
-# ============================================================
-# Secret key for encryption (generate with: python -c "import secrets; print(secrets.token_hex(32))")
-SECRET_KEY=generate_your_secret_key_here
-
-# API authentication (for web dashboard)
-API_USERNAME=admin
-API_PASSWORD=change_this_password
-
-# JWT settings
-JWT_SECRET_KEY=generate_your_jwt_secret_here
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_HOURS=24
-
-# ============================================================
-# TRADING SETTINGS
-# ============================================================
-# Maximum position size (percentage of portfolio)
-MAX_POSITION_PCT=10.0
-
-# Maximum portfolio risk (percentage)
-MAX_PORTFOLIO_RISK=20.0
-
-# Stop loss percentage
-STOP_LOSS_PCT=3.0
-
-# Take profit percentage
-TAKE_PROFIT_PCT=6.0
-
-# Minimum 24h volume (USD)
-MIN_24H_VOLUME=1000000
-
-# ============================================================
-# SYSTEM SETTINGS
-# ============================================================
-# Worker settings
-MAX_WORKERS=4
-THREAD_POOL_SIZE=10
-
-# Memory limit (MB)
-MEMORY_LIMIT_MB=1024
-
-# Logging
-LOG_FILE=/var/log/trading_bot/bot.log
-LOG_MAX_SIZE_MB=100
-LOG_BACKUP_COUNT=5
-
-# Data directory
-DATA_DIR=./data
-BACKUP_DIR=./backups
-
-# ============================================================
-# OPTIONAL SERVICES
-# ============================================================
-# Sentry (error tracking)
-SENTRY_DSN=
-
-# Analytics
-ANALYTICS_ENABLED=false
-
-# Debug mode (NEVER use in production!)
-DEBUG=false
-
-# ============================================================
-# NOTES
-# ============================================================
-# 1. Replace all "your_*_here" and "change_this_*" values
-# 2. Generate secret keys using: python -c "import secrets; print(secrets.token_hex(32))"
-# 3. For production, use strong passwords and enable all security features
-# 4. Keep this file secure and never commit it to version control
-# 5. For multiple environments, create .env.production, .env.staging, etc.
-# ============================================================
-"""
-    
-    env_file = Path('.env')
-    
-    if env_file.exists():
-        print("⚠️  .env file already exists!")
-        response = input("Do you want to overwrite it? (yes/no): ")
-        if response.lower() not in ['yes', 'y']:
-            print("Aborted. Existing .env file not modified.")
-            return False
-    
-    with open(env_file, 'w') as f:
-        f.write(env_template)
-    
-    print("✅ Created .env file")
-    print("\n📝 Next steps:")
-    print("1. Edit .env file and add your API keys")
-    print("2. Generate secret keys: python -c \"import secrets; print(secrets.token_hex(32))\"")
-    print("3. For testnet: Get keys from https://testnet.binance.vision/")
-    print("4. Never commit .env to version control!")
-    
+def validate_api_key(api_key):
+    """Validate Binance API key format"""
+    if len(api_key) < 16:
+        return False
+    if not re.match(r'^[A-Za-z0-9]+$', api_key):
+        return False
     return True
 
 
-def check_gitignore():
-    """Ensure .env is in .gitignore"""
-    gitignore_file = Path('.gitignore')
-    
-    if gitignore_file.exists():
-        with open(gitignore_file, 'r') as f:
-            content = f.read()
+def validate_email(email):
+    """Validate email format"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+
+def get_input(prompt, default=None, required=True, validator=None, secret=False):
+    """Get user input with validation"""
+    while True:
+        if default:
+            display_prompt = f"{prompt} [{default}]: "
+        else:
+            display_prompt = f"{prompt}: "
         
-        if '.env' not in content:
-            with open(gitignore_file, 'a') as f:
-                f.write('\n# Environment variables\n.env\n.env.*\n')
-            print("✅ Added .env to .gitignore")
+        if secret:
+            value = getpass.getpass(display_prompt)
+        else:
+            value = input(display_prompt).strip()
+        
+        if not value and default:
+            value = default
+        
+        if not value and required:
+            print_error("This field is required")
+            continue
+        
+        if not value and not required:
+            return ""
+        
+        if validator and value:
+            if not validator(value):
+                print_error("Invalid input format")
+                continue
+        
+        return value
+
+
+def get_yes_no(prompt, default=None):
+    """Get yes/no input"""
+    while True:
+        if default is not None:
+            default_str = "Y/n" if default else "y/N"
+            value = input(f"{prompt} [{default_str}]: ").strip().lower()
+            if not value:
+                return default
+        else:
+            value = input(f"{prompt} [y/n]: ").strip().lower()
+        
+        if value in ['y', 'yes']:
+            return True
+        elif value in ['n', 'no']:
+            return False
+        else:
+            print_error("Please enter 'y' or 'n'")
+
+
+def get_number(prompt, default=None, min_val=None, max_val=None):
+    """Get numeric input with validation"""
+    while True:
+        value = get_input(prompt, default=str(default) if default else None, required=default is None)
+        
+        try:
+            num = float(value)
+            if min_val is not None and num < min_val:
+                print_error(f"Value must be at least {min_val}")
+                continue
+            if max_val is not None and num > max_val:
+                print_error(f"Value must be at most {max_val}")
+                continue
+            return num
+        except ValueError:
+            print_error("Please enter a valid number")
+
+
+def setup_basic_config():
+    """Setup basic application configuration"""
+    print_info("=== Basic Configuration ===")
+    
+    config = {}
+    
+    config['APP_NAME'] = get_input("Application name", default="trading-bot", required=False)
+    config['APP_ENV'] = get_input("Environment (development/staging/production)", default="production", required=False)
+    config['DEBUG'] = "true" if get_yes_no("Enable debug mode?", default=False) else "false"
+    config['LOG_LEVEL'] = get_input("Log level (DEBUG/INFO/WARNING/ERROR)", default="INFO", required=False)
+    
+    return config
+
+
+def setup_binance_config():
+    """Setup Binance API configuration"""
+    print_info("\n=== Binance API Configuration ===")
+    print_warning("Your API credentials will be stored securely in the .env file")
+    
+    config = {}
+    
+    while True:
+        api_key = get_input("Binance API Key", secret=True, validator=validate_api_key)
+        if validate_api_key(api_key):
+            config['BINANCE_API_KEY'] = api_key
+            break
+        print_error("Invalid API key format")
+    
+    config['BINANCE_API_SECRET'] = get_input("Binance API Secret", secret=True)
+    config['BINANCE_TESTNET'] = "true" if get_yes_no("Use Binance Testnet?", default=False) else "false"
+    
+    return config
+
+
+def setup_database_config():
+    """Setup database configuration"""
+    print_info("\n=== Database Configuration ===")
+    
+    config = {}
+    
+    db_types = ['sqlite', 'postgresql']
+    print("Available database types:")
+    for i, db_type in enumerate(db_types, 1):
+        print(f"  {i}. {db_type}")
+    
+    db_choice = get_input("Select database type", default="1", required=False)
+    if db_choice.isdigit():
+        choice_num = int(db_choice)
+        if 1 <= choice_num <= len(db_types):
+            db_type = db_types[choice_num - 1]
+        else:
+            db_type = 'sqlite'
     else:
-        with open(gitignore_file, 'w') as f:
-            f.write('# Environment variables\n.env\n.env.*\n')
-        print("✅ Created .gitignore with .env")
-
-
-def create_env_example():
-    """Create .env.example without sensitive data"""
-    example_content = """# Example environment configuration
-# Copy this to .env and fill in your actual values
-
-ENVIRONMENT=paper
-BINANCE_API_KEY=your_api_key_here
-BINANCE_API_SECRET=your_api_secret_here
-REDIS_URL=redis://localhost:6379/0
-POSTGRES_HOST=localhost
-POSTGRES_DB=trading_bot
-SECRET_KEY=generate_with_python_secrets
-"""
+        db_type = 'sqlite'
     
-    with open('.env.example', 'w') as f:
-        f.write(example_content)
+    config['DB_TYPE'] = db_type
     
-    print("✅ Created .env.example")
+    if db_type == 'sqlite':
+        config['DB_PATH'] = get_input("SQLite database path", default="/var/lib/trading-bot/trading_bot.db", required=False)
+    else:
+        config['DB_HOST'] = get_input("Database host", default="localhost", required=False)
+        config['DB_PORT'] = get_input("Database port", default="5432", required=False)
+        config['DB_NAME'] = get_input("Database name", default="trading_bot", required=False)
+        config['DB_USER'] = get_input("Database user", default="trading_bot_user", required=False)
+        config['DB_PASSWORD'] = get_input("Database password", secret=True)
+    
+    return config
+
+
+def setup_trading_config():
+    """Setup trading configuration"""
+    print_info("\n=== Trading Configuration ===")
+    
+    config = {}
+    
+    config['TRADING_ENABLED'] = "true" if get_yes_no("Enable live trading?", default=False) else "false"
+    config['DEFAULT_SYMBOL'] = get_input("Default trading symbol", default="BTCUSDT", required=False)
+    config['MAX_POSITION_SIZE'] = str(get_number("Maximum position size", default=0.1, min_val=0.001))
+    config['STOP_LOSS_PERCENTAGE'] = str(get_number("Stop loss percentage", default=2.0, min_val=0.1, max_val=50))
+    config['TAKE_PROFIT_PERCENTAGE'] = str(get_number("Take profit percentage", default=5.0, min_val=0.1, max_val=100))
+    
+    return config
+
+
+def setup_risk_management():
+    """Setup risk management configuration"""
+    print_info("\n=== Risk Management ===")
+    
+    config = {}
+    
+    config['MAX_DAILY_TRADES'] = str(int(get_number("Maximum daily trades", default=10, min_val=1)))
+    config['MAX_OPEN_POSITIONS'] = str(int(get_number("Maximum open positions", default=3, min_val=1)))
+    config['MAX_DAILY_LOSS_PERCENTAGE'] = str(get_number("Maximum daily loss percentage", default=5.0, min_val=0.1, max_val=100))
+    config['POSITION_SIZE_PERCENTAGE'] = str(get_number("Position size percentage of capital", default=2.0, min_val=0.1, max_val=100))
+    
+    return config
+
+
+def setup_notifications():
+    """Setup notification configuration"""
+    print_info("\n=== Notification Settings ===")
+    
+    config = {}
+    
+    config['ENABLE_NOTIFICATIONS'] = "true" if get_yes_no("Enable notifications?", default=False) else "false"
+    
+    if config['ENABLE_NOTIFICATIONS'] == "true":
+        if get_yes_no("Configure Telegram notifications?", default=False):
+            config['TELEGRAM_BOT_TOKEN'] = get_input("Telegram Bot Token", secret=True)
+            config['TELEGRAM_CHAT_ID'] = get_input("Telegram Chat ID")
+        
+        if get_yes_no("Configure email notifications?", default=False):
+            config['EMAIL_ENABLED'] = "true"
+            config['SMTP_HOST'] = get_input("SMTP Host", default="smtp.gmail.com", required=False)
+            config['SMTP_PORT'] = get_input("SMTP Port", default="587", required=False)
+            config['SMTP_USER'] = get_input("SMTP Username")
+            config['SMTP_PASSWORD'] = get_input("SMTP Password", secret=True)
+            config['ALERT_EMAIL'] = get_input("Alert email address", validator=validate_email)
+    
+    return config
+
+
+def write_env_file(config, output_path):
+    """Write configuration to .env file"""
+    print_info(f"\nWriting configuration to {output_path}")
+    
+    # Read template if exists
+    template_path = Path(__file__).parent.parent / ".env.template"
+    
+    if template_path.exists():
+        with open(template_path, 'r') as f:
+            template_content = f.read()
+    else:
+        template_content = ""
+    
+    # Update template with user values
+    env_content = template_content
+    for key, value in config.items():
+        pattern = f"{key}=.*"
+        replacement = f"{key}={value}"
+        if re.search(pattern, env_content):
+            env_content = re.sub(pattern, replacement, env_content)
+        else:
+            env_content += f"\n{key}={value}"
+    
+    # Write to file
+    with open(output_path, 'w') as f:
+        f.write(env_content)
+    
+    # Set secure permissions
+    os.chmod(output_path, 0o600)
+    
+    print_success(f"Configuration written to {output_path}")
+    print_warning("Please review the file and make any additional changes as needed")
 
 
 def main():
-    """Main setup function"""
-    print("=" * 60)
-    print("CRYPTO TRADING BOT - ENVIRONMENT SETUP")
-    print("=" * 60)
+    """Main function"""
+    print("=" * 70)
+    print("Trading Bot - Interactive Environment Configuration")
+    print("=" * 70)
     print()
     
-    # Check if we're in the right directory
-    if not Path('src').exists():
-        print("❌ Error: Must run from project root directory")
-        print("   Expected to find 'src' directory")
+    # Determine output path
+    default_output = os.environ.get('CONFIG_DIR', '/etc/trading-bot') + '/.env'
+    if not os.access(os.path.dirname(default_output), os.W_OK):
+        default_output = str(Path.home() / '.env')
+    
+    output_path = get_input("Output file path", default=default_output, required=False)
+    
+    # Create directory if needed
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+    
+    # Collect configuration
+    config = {}
+    config.update(setup_basic_config())
+    config.update(setup_binance_config())
+    config.update(setup_database_config())
+    config.update(setup_trading_config())
+    config.update(setup_risk_management())
+    config.update(setup_notifications())
+    
+    # Write configuration
+    write_env_file(config, output_path)
+    
+    print()
+    print("=" * 70)
+    print_success("Environment configuration completed!")
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print()
+        print_warning("Configuration cancelled by user")
         sys.exit(1)
-    
-    # Create .env file
-    create_env_file()
-    
-    # Check/update .gitignore
-    check_gitignore()
-    
-    # Create .env.example
-    create_env_example()
-    
-    print("\n" + "=" * 60)
-    print("SETUP COMPLETE")
-    print("=" * 60)
-    print("\n⚠️  IMPORTANT SECURITY REMINDERS:")
-    print("1. Edit .env and replace all placeholder values")
-    print("2. NEVER commit .env to version control")
-    print("3. Use testnet keys for development/testing")
-    print("4. Use strong passwords for production")
-    print("5. Keep API keys with minimal permissions (no withdrawal)")
-
-
-if __name__ == '__main__':
-    main()
+    except Exception as e:
+        print_error(f"An error occurred: {str(e)}")
+        sys.exit(1)
