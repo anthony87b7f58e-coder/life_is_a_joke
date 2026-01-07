@@ -97,6 +97,10 @@ class CCXTExchangeManager(ExchangeManager):
                 config['password'] = self.passphrase
 
             self.exchange = exchange_class(config)
+            
+            # Load markets to populate symbols and markets properties
+            self.exchange.load_markets()
+            
             self.is_connected = True
             logger.info(f"Successfully connected to {self.exchange_name}")
             return True
@@ -296,6 +300,9 @@ class CCXTExchangeManager(ExchangeManager):
 
         try:
             symbols = self.exchange.symbols
+            if symbols is None:
+                logger.warning("Markets not loaded, returning empty list")
+                return []
             logger.debug(f"Fetched {len(symbols)} supported symbols")
             return symbols
         except Exception as e:
@@ -314,9 +321,13 @@ class CCXTExchangeManager(ExchangeManager):
             return {}
 
         try:
-            markets = self.exchange.fetch_markets()
+            # Use cached markets property instead of making API call
+            markets = self.exchange.markets
+            if markets is None:
+                logger.warning("Markets not loaded")
+                return {}
             logger.debug(f"Fetched market information")
-            return {market['symbol']: market for market in markets}
+            return markets
         except Exception as e:
             logger.error(f"Error fetching markets: {str(e)}")
             return {}
