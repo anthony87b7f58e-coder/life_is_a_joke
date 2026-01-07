@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Optional, Any, Union
 from abc import ABC, abstractmethod
 import ccxt
+from .telegram_notifier import send_error_notification
 
 logger = logging.getLogger(__name__)
 
@@ -101,11 +102,21 @@ class CCXTExchangeManager(ExchangeManager):
             logger.info(f"Successfully connected to {self.exchange_name}")
             return True
 
-        except AttributeError:
+        except AttributeError as e:
             logger.error(f"Exchange '{self.exchange_name}' not supported by CCXT")
+            send_error_notification(
+                f"Подключение к бирже {self.exchange_name}",
+                e,
+                {"биржа": self.exchange_name}
+            )
             return False
         except Exception as e:
             logger.error(f"Failed to connect to {self.exchange_name}: {str(e)}")
+            send_error_notification(
+                f"Подключение к бирже {self.exchange_name}",
+                e,
+                {"биржа": self.exchange_name}
+            )
             return False
 
     def disconnect(self) -> bool:
@@ -141,6 +152,11 @@ class CCXTExchangeManager(ExchangeManager):
             return balance
         except Exception as e:
             logger.error(f"Error fetching balance: {str(e)}")
+            send_error_notification(
+                f"Получение баланса с биржи {self.exchange_name}",
+                e,
+                {"биржа": self.exchange_name}
+            )
             return {}
 
     def get_ticker(self, symbol: str) -> Dict[str, Any]:
@@ -211,8 +227,39 @@ class CCXTExchangeManager(ExchangeManager):
             order = self.exchange.create_order(symbol, order_type, side, amount, price)
             logger.info(f"Placed {side} {order_type} order for {symbol}")
             return order
+        except ccxt.InsufficientFunds as e:
+            logger.error(f"Insufficient funds for order: {str(e)}")
+            context = {
+                "символ": symbol,
+                "тип ордера": order_type,
+                "сторона": side,
+                "количество": str(amount),
+                "биржа": self.exchange_name
+            }
+            if price:
+                context["цена"] = str(price)
+            send_error_notification(
+                f"Размещение ордера на {self.exchange_name}",
+                e,
+                context
+            )
+            return {"error": "insufficient_funds", "message": str(e)}
         except Exception as e:
             logger.error(f"Error placing order: {str(e)}")
+            context = {
+                "символ": symbol,
+                "тип ордера": order_type,
+                "сторона": side,
+                "количество": str(amount),
+                "биржа": self.exchange_name
+            }
+            if price:
+                context["цена"] = str(price)
+            send_error_notification(
+                f"Размещение ордера на {self.exchange_name}",
+                e,
+                context
+            )
             return {}
 
     def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> Dict[str, Any]:
@@ -236,6 +283,17 @@ class CCXTExchangeManager(ExchangeManager):
             return result
         except Exception as e:
             logger.error(f"Error cancelling order: {str(e)}")
+            context = {
+                "order_id": order_id,
+                "биржа": self.exchange_name
+            }
+            if symbol:
+                context["символ"] = symbol
+            send_error_notification(
+                f"Отмена ордера на {self.exchange_name}",
+                e,
+                context
+            )
             return {}
 
     def get_open_orders(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
