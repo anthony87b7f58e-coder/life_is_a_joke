@@ -26,8 +26,8 @@ class TelegramNotifier:
             bot_token: Telegram Bot API token (if None, reads from TELEGRAM_BOT_TOKEN env var)
             chat_id: Telegram chat ID to send messages to (if None, reads from TELEGRAM_CHAT_ID env var)
         """
-        self.bot_token = bot_token or os.environ.get('TELEGRAM_BOT_TOKEN')
-        self.chat_id = chat_id or os.environ.get('TELEGRAM_CHAT_ID')
+        self.bot_token = bot_token if bot_token else os.environ.get('TELEGRAM_BOT_TOKEN')
+        self.chat_id = chat_id if chat_id else os.environ.get('TELEGRAM_CHAT_ID')
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}" if self.bot_token else None
         
         if not self.bot_token or not self.chat_id:
