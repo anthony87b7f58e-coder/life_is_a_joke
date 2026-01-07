@@ -153,6 +153,11 @@ class CCXTExchangeManager(ExchangeManager):
 
         Returns:
             float: Balance amount for the specified currency, 0.0 if not found
+            
+        Note:
+            This method makes a fresh API call to the exchange each time.
+            For multiple currency lookups, consider calling get_balance() once
+            and parsing the result yourself to reduce API calls.
         """
         if not self.is_connected or not self.exchange:
             logger.error("Not connected to exchange")
