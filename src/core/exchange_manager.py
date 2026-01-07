@@ -130,18 +130,28 @@ class CCXTExchangeManager(ExchangeManager):
 
         Returns:
             Dict containing account balance information
+            
+        Raises:
+            ConnectionError: When not connected to exchange
+            Exception: For other exchange-related errors
         """
         if not self.is_connected or not self.exchange:
-            logger.error("Not connected to exchange")
-            return {}
+            error_msg = "Not connected to exchange"
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
 
         try:
             balance = self.exchange.fetch_balance()
             logger.info(f"Fetched balance from {self.exchange_name}")
             return balance
+        except ccxt.NetworkError as e:
+            error_msg = f"Network error while fetching balance: {str(e)}"
+            logger.error(error_msg)
+            raise
         except Exception as e:
-            logger.error(f"Error fetching balance: {str(e)}")
-            return {}
+            error_msg = f"Error fetching balance: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg)
+            raise
 
     def get_ticker(self, symbol: str) -> Dict[str, Any]:
         """
@@ -188,6 +198,68 @@ class CCXTExchangeManager(ExchangeManager):
             logger.error(f"Error fetching orderbook for {symbol}: {str(e)}")
             return {}
 
+    def _check_sufficient_balance(self, symbol: str, side: str, amount: float, 
+                                  price: Optional[float] = None) -> bool:
+        """
+        Check if account has sufficient balance for an order.
+
+        Args:
+            symbol: Trading pair symbol (e.g., 'BTC/USDT')
+            side: Order side ('buy' or 'sell')
+            amount: Amount to trade
+            price: Price per unit (for estimating required balance)
+
+        Returns:
+            bool: True if sufficient balance, False otherwise
+        """
+        try:
+            balance = self.exchange.fetch_balance()
+            
+            # Parse the symbol to get base and quote currencies
+            # e.g., 'BTC/USDT' -> base='BTC', quote='USDT'
+            parts = symbol.split('/')
+            if len(parts) != 2:
+                logger.warning(f"Invalid symbol format: {symbol}, proceeding without local validation")
+                # Let the exchange validate the symbol format
+                return True
+            
+            base_currency, quote_currency = parts
+            
+            if side.lower() == 'buy':
+                # For buy orders, need quote currency (e.g., USDT to buy BTC)
+                required_currency = quote_currency
+                if price:
+                    required_amount = amount * price
+                else:
+                    # For market orders, estimate using current ticker
+                    ticker = self.exchange.fetch_ticker(symbol)
+                    ask_price = ticker.get('ask')
+                    if not ask_price or ask_price <= 0:
+                        logger.warning(f"Invalid or missing ask price for {symbol}, proceeding without local validation")
+                        return True
+                    required_amount = amount * ask_price
+            else:
+                # For sell orders, need base currency (e.g., BTC to sell)
+                required_currency = base_currency
+                required_amount = amount
+            
+            # Get available balance for the required currency
+            available = balance.get('free', {}).get(required_currency, 0)
+            
+            if available < required_amount:
+                logger.warning(
+                    f"Insufficient {required_currency} balance. "
+                    f"Required: {required_amount}, Available: {available}"
+                )
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Error checking balance: {str(e)}, proceeding without validation")
+            # If we can't check balance, let the exchange handle it
+            return True
+
     def place_order(self, symbol: str, order_type: str, side: str, amount: float,
                    price: Optional[float] = None) -> Dict[str, Any]:
         """
@@ -202,18 +274,41 @@ class CCXTExchangeManager(ExchangeManager):
 
         Returns:
             Dict containing order information
+            
+        Raises:
+            ccxt.InsufficientFunds: When account has insufficient balance
+            ccxt.NetworkError: When there's a network connectivity issue
+            Exception: For other exchange-related errors
         """
         if not self.is_connected or not self.exchange:
-            logger.error("Not connected to exchange")
-            return {}
+            error_msg = "Not connected to exchange"
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
 
         try:
+            # Pre-validate balance locally (advisory check)
+            # Note: This is a best-effort check. The exchange may still reject due to:
+            # - Fees, slippage, minimum amounts, or other exchange-specific rules
+            # - Balance changes between check and order submission
+            if not self._check_sufficient_balance(symbol, side, amount, price):
+                logger.warning(f"Local balance check suggests insufficient funds for {side} order: {amount} {symbol}")
+                # Continue to exchange - it will provide the authoritative error
+            
             order = self.exchange.create_order(symbol, order_type, side, amount, price)
-            logger.info(f"Placed {side} {order_type} order for {symbol}")
+            logger.info(f"Placed {side} {order_type} order for {symbol}: {amount} @ {price}")
             return order
+        except ccxt.InsufficientFunds as e:
+            error_msg = f"Insufficient balance for order: {str(e)}"
+            logger.error(error_msg)
+            raise
+        except ccxt.NetworkError as e:
+            error_msg = f"Network error while placing order: {str(e)}"
+            logger.error(error_msg)
+            raise
         except Exception as e:
-            logger.error(f"Error placing order: {str(e)}")
-            return {}
+            error_msg = f"Failed to create order: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg)
+            raise
 
     def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> Dict[str, Any]:
         """
