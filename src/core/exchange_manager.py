@@ -219,8 +219,9 @@ class CCXTExchangeManager(ExchangeManager):
             # e.g., 'BTC/USDT' -> base='BTC', quote='USDT'
             parts = symbol.split('/')
             if len(parts) != 2:
-                logger.warning(f"Invalid symbol format: {symbol}, skipping balance check")
-                return True  # Skip validation for invalid format
+                logger.warning(f"Invalid symbol format: {symbol}, proceeding without local validation")
+                # Let the exchange validate the symbol format
+                return True
             
             base_currency, quote_currency = parts
             
@@ -232,7 +233,11 @@ class CCXTExchangeManager(ExchangeManager):
                 else:
                     # For market orders, estimate using current ticker
                     ticker = self.exchange.fetch_ticker(symbol)
-                    required_amount = amount * ticker.get('ask', 0)
+                    ask_price = ticker.get('ask')
+                    if not ask_price or ask_price <= 0:
+                        logger.warning(f"Invalid or missing ask price for {symbol}, proceeding without local validation")
+                        return True
+                    required_amount = amount * ask_price
             else:
                 # For sell orders, need base currency (e.g., BTC to sell)
                 required_currency = base_currency
@@ -281,11 +286,13 @@ class CCXTExchangeManager(ExchangeManager):
             raise ConnectionError(error_msg)
 
         try:
-            # Validate balance before placing order
+            # Pre-validate balance locally (advisory check)
+            # Note: This is a best-effort check. The exchange may still reject due to:
+            # - Fees, slippage, minimum amounts, or other exchange-specific rules
+            # - Balance changes between check and order submission
             if not self._check_sufficient_balance(symbol, side, amount, price):
-                error_msg = f"Insufficient balance for {side} order: {amount} {symbol}"
-                logger.error(error_msg)
-                raise ccxt.InsufficientFunds(error_msg)
+                logger.warning(f"Local balance check suggests insufficient funds for {side} order: {amount} {symbol}")
+                # Continue to exchange - it will provide the authoritative error
             
             order = self.exchange.create_order(symbol, order_type, side, amount, price)
             logger.info(f"Placed {side} {order_type} order for {symbol}: {amount} @ {price}")
