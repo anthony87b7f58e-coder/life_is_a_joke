@@ -35,7 +35,7 @@ class TelegramNotifier:
             self.enabled = False
         else:
             self.enabled = True
-            logger.info("Telegram notifier initialized")
+            logger.debug("Telegram notifier initialized")
 
     def send_message(self, message: str, parse_mode: str = 'HTML') -> bool:
         """
@@ -60,7 +60,7 @@ class TelegramNotifier:
                 'parse_mode': parse_mode
             }
             
-            response = requests.post(url, json=payload, timeout=10)
+            response = requests.post(url, json=payload, timeout=10, verify=True)
             response.raise_for_status()
             
             logger.debug("Telegram message sent successfully")
