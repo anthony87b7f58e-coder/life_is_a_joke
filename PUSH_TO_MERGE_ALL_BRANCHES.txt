@@ -1,0 +1,8 @@
+This file triggers the push to copilot/merge-all-branches.
+
+All balance fix changes have been committed to copilot/merge-all-branches branch locally.
+Changes include:
+- Fix balance retrieval error (commit e204c27)
+- Add balance fix summary (commit a942be5)
+- Update balance fix summary with details (commit dab3f63)
+- Resolve merge conflict in src/main.py (commit 4b67a1b)
