@@ -153,6 +153,55 @@ class CCXTExchangeManager(ExchangeManager):
             logger.error(error_msg)
             raise
 
+    def get_currency_balance(self, currency: str = 'USDT', balance_type: str = 'free') -> float:
+        """
+        Get balance for a specific currency.
+
+        Args:
+            currency: Currency symbol (e.g., 'USDT', 'BTC')
+            balance_type: Type of balance - 'free', 'used', or 'total'
+
+        Returns:
+            float: Balance amount for the specified currency, 0.0 if not found
+            
+        Note:
+            This method makes a fresh API call to the exchange each time.
+            For multiple currency lookups, consider calling get_balance() once
+            and parsing the result yourself to reduce API calls.
+        """
+        if not self.is_connected or not self.exchange:
+            logger.error("Not connected to exchange")
+            return 0.0
+
+        try:
+            balance = self.exchange.fetch_balance()
+            
+            # CCXT returns balance in format:
+            # {
+            #   'info': {...},
+            #   'timestamp': ...,
+            #   'datetime': ...,
+            #   'free': {'USDT': 10000.0, ...},
+            #   'used': {'USDT': 0.0, ...},
+            #   'total': {'USDT': 10000.0, ...}
+            # }
+            
+            if balance_type not in ['free', 'used', 'total']:
+                logger.warning(f"Invalid balance_type '{balance_type}', using 'free'")
+                balance_type = 'free'
+            
+            if balance_type in balance and isinstance(balance[balance_type], dict):
+                currency_balance = balance[balance_type].get(currency, 0.0)
+                logger.info(f"{currency} {balance_type} balance: {currency_balance}")
+                return float(currency_balance)
+            else:
+                logger.warning(f"Could not find {balance_type} balance dict. Balance keys: {list(balance.keys())}")
+                return 0.0
+                
+        except Exception as e:
+            logger.error(f"Error fetching {currency} balance: {str(e)}")
+            return 0.0
+
     def get_ticker(self, symbol: str) -> Dict[str, Any]:
         """
         Get ticker information for a trading pair.
