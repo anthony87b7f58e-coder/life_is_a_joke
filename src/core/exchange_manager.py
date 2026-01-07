@@ -97,12 +97,6 @@ class CCXTExchangeManager(ExchangeManager):
                 config['password'] = self.passphrase
 
             self.exchange = exchange_class(config)
-            # Load markets to ensure symbol data is available
-            try:
-                self.exchange.load_markets()
-            except Exception as e:
-                logger.warning(f"Failed to load markets: {str(e)}")
-                # Continue anyway - markets will be loaded on first use
             self.is_connected = True
             logger.info(f"Successfully connected to {self.exchange_name}")
             return True
@@ -130,91 +124,41 @@ class CCXTExchangeManager(ExchangeManager):
             logger.error(f"Error disconnecting from {self.exchange_name}: {str(e)}")
             return False
 
-    def normalize_symbol(self, symbol: str) -> str:
-        """
-        Normalize a trading symbol to CCXT unified format.
-        
-        Converts symbols from various formats to CCXT's unified format (e.g., 'BTCUSDT' -> 'BTC/USDT').
-        If the symbol is already in the correct format or exists in the exchange, returns it as-is.
-        
-        Args:
-            symbol: Trading pair symbol in any format
-            
-        Returns:
-            Normalized symbol in CCXT unified format
-        """
-        if not self.is_connected or not self.exchange:
-            logger.warning("Not connected to exchange, returning symbol as-is")
-            return symbol
-        
-        # If symbol already exists in exchange markets, return it
-        if symbol in self.exchange.markets:
-            return symbol
-        
-        # Try to normalize from concatenated format (e.g., BTCUSDT) to slash format (BTC/USDT)
-        # Common quote currencies in order of popularity
-        quote_currencies = ['USDT', 'USDC', 'USD', 'BUSD', 'BTC', 'ETH', 'BNB', 'EUR', 'GBP']
-        
-        for quote in quote_currencies:
-            if symbol.endswith(quote) and len(symbol) > len(quote):
-                base = symbol[:-len(quote)]
-                normalized = f"{base}/{quote}"
-                if normalized in self.exchange.markets:
-                    logger.debug(f"Normalized symbol {symbol} to {normalized}")
-                    return normalized
-        
-        # If normalization fails, return original symbol
-        logger.warning(f"Could not normalize symbol {symbol}, returning as-is")
-        return symbol
-    
-    def validate_symbol(self, symbol: str) -> bool:
-        """
-        Validate if a trading symbol exists on the exchange.
-        
-        Args:
-            symbol: Trading pair symbol to validate
-            
-        Returns:
-            True if symbol exists on the exchange, False otherwise
-        """
-        if not self.is_connected or not self.exchange:
-            logger.error("Not connected to exchange")
-            return False
-        
-        normalized_symbol = self.normalize_symbol(symbol)
-        is_valid = normalized_symbol in self.exchange.markets
-        
-        if not is_valid:
-            logger.error(f"Symbol {symbol} (normalized: {normalized_symbol}) not found on {self.exchange_name}")
-            logger.debug(f"Available symbols sample: {list(self.exchange.markets.keys())[:5]}")
-        
-        return is_valid
-
     def get_balance(self) -> Dict[str, Any]:
         """
         Fetch account balance from the exchange.
 
         Returns:
             Dict containing account balance information
+            
+        Raises:
+            ConnectionError: When not connected to exchange
+            Exception: For other exchange-related errors
         """
         if not self.is_connected or not self.exchange:
-            logger.error("Not connected to exchange")
-            return {}
+            error_msg = "Not connected to exchange"
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
 
         try:
             balance = self.exchange.fetch_balance()
             logger.info(f"Fetched balance from {self.exchange_name}")
             return balance
+        except ccxt.NetworkError as e:
+            error_msg = f"Network error while fetching balance: {str(e)}"
+            logger.error(error_msg)
+            raise
         except Exception as e:
-            logger.error(f"Error fetching balance: {str(e)}")
-            return {}
+            error_msg = f"Error fetching balance: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg)
+            raise
 
     def get_ticker(self, symbol: str) -> Dict[str, Any]:
         """
         Get ticker information for a trading pair.
 
         Args:
-            symbol: Trading pair symbol (e.g., 'BTC/USDT' or 'BTCUSDT')
+            symbol: Trading pair symbol (e.g., 'BTC/USDT')
 
         Returns:
             Dict containing ticker data
@@ -224,9 +168,8 @@ class CCXTExchangeManager(ExchangeManager):
             return {}
 
         try:
-            normalized_symbol = self.normalize_symbol(symbol)
-            ticker = self.exchange.fetch_ticker(normalized_symbol)
-            logger.debug(f"Fetched ticker for {normalized_symbol}")
+            ticker = self.exchange.fetch_ticker(symbol)
+            logger.debug(f"Fetched ticker for {symbol}")
             return ticker
         except Exception as e:
             logger.error(f"Error fetching ticker for {symbol}: {str(e)}")
@@ -237,7 +180,7 @@ class CCXTExchangeManager(ExchangeManager):
         Get order book for a trading pair.
 
         Args:
-            symbol: Trading pair symbol (e.g., 'BTC/USDT' or 'BTCUSDT')
+            symbol: Trading pair symbol (e.g., 'BTC/USDT')
             limit: Optional limit on number of orders to fetch
 
         Returns:
@@ -248,13 +191,74 @@ class CCXTExchangeManager(ExchangeManager):
             return {}
 
         try:
-            normalized_symbol = self.normalize_symbol(symbol)
-            orderbook = self.exchange.fetch_order_book(normalized_symbol, limit=limit)
-            logger.debug(f"Fetched orderbook for {normalized_symbol}")
+            orderbook = self.exchange.fetch_order_book(symbol, limit=limit)
+            logger.debug(f"Fetched orderbook for {symbol}")
             return orderbook
         except Exception as e:
             logger.error(f"Error fetching orderbook for {symbol}: {str(e)}")
             return {}
+
+    def _check_sufficient_balance(self, symbol: str, side: str, amount: float, 
+                                  price: Optional[float] = None) -> bool:
+        """
+        Check if account has sufficient balance for an order.
+
+        Args:
+            symbol: Trading pair symbol (e.g., 'BTC/USDT')
+            side: Order side ('buy' or 'sell')
+            amount: Amount to trade
+            price: Price per unit (for estimating required balance)
+
+        Returns:
+            bool: True if sufficient balance, False otherwise
+        """
+        try:
+            balance = self.exchange.fetch_balance()
+            
+            # Parse the symbol to get base and quote currencies
+            # e.g., 'BTC/USDT' -> base='BTC', quote='USDT'
+            parts = symbol.split('/')
+            if len(parts) != 2:
+                logger.warning(f"Invalid symbol format: {symbol}, proceeding without local validation")
+                # Let the exchange validate the symbol format
+                return True
+            
+            base_currency, quote_currency = parts
+            
+            if side.lower() == 'buy':
+                # For buy orders, need quote currency (e.g., USDT to buy BTC)
+                required_currency = quote_currency
+                if price:
+                    required_amount = amount * price
+                else:
+                    # For market orders, estimate using current ticker
+                    ticker = self.exchange.fetch_ticker(symbol)
+                    ask_price = ticker.get('ask')
+                    if not ask_price or ask_price <= 0:
+                        logger.warning(f"Invalid or missing ask price for {symbol}, proceeding without local validation")
+                        return True
+                    required_amount = amount * ask_price
+            else:
+                # For sell orders, need base currency (e.g., BTC to sell)
+                required_currency = base_currency
+                required_amount = amount
+            
+            # Get available balance for the required currency
+            available = balance.get('free', {}).get(required_currency, 0)
+            
+            if available < required_amount:
+                logger.warning(
+                    f"Insufficient {required_currency} balance. "
+                    f"Required: {required_amount}, Available: {available}"
+                )
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Error checking balance: {str(e)}, proceeding without validation")
+            # If we can't check balance, let the exchange handle it
+            return True
 
     def place_order(self, symbol: str, order_type: str, side: str, amount: float,
                    price: Optional[float] = None) -> Dict[str, Any]:
@@ -262,7 +266,7 @@ class CCXTExchangeManager(ExchangeManager):
         Place an order on the exchange.
 
         Args:
-            symbol: Trading pair symbol (e.g., 'BTC/USDT' or 'BTCUSDT')
+            symbol: Trading pair symbol (e.g., 'BTC/USDT')
             order_type: Type of order ('limit', 'market', etc.)
             side: Order side ('buy' or 'sell')
             amount: Amount to trade
@@ -270,19 +274,41 @@ class CCXTExchangeManager(ExchangeManager):
 
         Returns:
             Dict containing order information
+            
+        Raises:
+            ccxt.InsufficientFunds: When account has insufficient balance
+            ccxt.NetworkError: When there's a network connectivity issue
+            Exception: For other exchange-related errors
         """
         if not self.is_connected or not self.exchange:
-            logger.error("Not connected to exchange")
-            return {}
+            error_msg = "Not connected to exchange"
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
 
         try:
-            normalized_symbol = self.normalize_symbol(symbol)
-            order = self.exchange.create_order(normalized_symbol, order_type, side, amount, price)
-            logger.info(f"Placed {side} {order_type} order for {normalized_symbol}")
+            # Pre-validate balance locally (advisory check)
+            # Note: This is a best-effort check. The exchange may still reject due to:
+            # - Fees, slippage, minimum amounts, or other exchange-specific rules
+            # - Balance changes between check and order submission
+            if not self._check_sufficient_balance(symbol, side, amount, price):
+                logger.warning(f"Local balance check suggests insufficient funds for {side} order: {amount} {symbol}")
+                # Continue to exchange - it will provide the authoritative error
+            
+            order = self.exchange.create_order(symbol, order_type, side, amount, price)
+            logger.info(f"Placed {side} {order_type} order for {symbol}: {amount} @ {price}")
             return order
+        except ccxt.InsufficientFunds as e:
+            error_msg = f"Insufficient balance for order: {str(e)}"
+            logger.error(error_msg)
+            raise
+        except ccxt.NetworkError as e:
+            error_msg = f"Network error while placing order: {str(e)}"
+            logger.error(error_msg)
+            raise
         except Exception as e:
-            logger.error(f"Error placing order: {str(e)}")
-            return {}
+            error_msg = f"Failed to create order: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg)
+            raise
 
     def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -300,8 +326,7 @@ class CCXTExchangeManager(ExchangeManager):
             return {}
 
         try:
-            normalized_symbol = self.normalize_symbol(symbol) if symbol else None
-            result = self.exchange.cancel_order(order_id, normalized_symbol)
+            result = self.exchange.cancel_order(order_id, symbol)
             logger.info(f"Cancelled order {order_id}")
             return result
         except Exception as e:
@@ -323,8 +348,7 @@ class CCXTExchangeManager(ExchangeManager):
             return []
 
         try:
-            normalized_symbol = self.normalize_symbol(symbol) if symbol else None
-            orders = self.exchange.fetch_open_orders(normalized_symbol)
+            orders = self.exchange.fetch_open_orders(symbol)
             logger.debug(f"Fetched open orders")
             return orders
         except Exception as e:
@@ -347,8 +371,7 @@ class CCXTExchangeManager(ExchangeManager):
             return []
 
         try:
-            normalized_symbol = self.normalize_symbol(symbol) if symbol else None
-            orders = self.exchange.fetch_closed_orders(normalized_symbol, limit=limit)
+            orders = self.exchange.fetch_closed_orders(symbol, limit=limit)
             logger.debug(f"Fetched closed orders")
             return orders
         except Exception as e:
