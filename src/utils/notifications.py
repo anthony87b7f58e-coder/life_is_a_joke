@@ -124,22 +124,30 @@ class TelegramNotifier:
         Returns:
             True if sent successfully
         """
+        emoji = "🟢" if str(side).upper() == "BUY" else "🔴"  # Define early for except block
+        
         try:
-            emoji = "🟢" if side.upper() == "BUY" else "🔴"
-            
             # Ensure price is a valid float
             if price is None or (isinstance(price, str) and price.lower() == 'none'):
                 self.logger.warning(f"Invalid price value for position opened notification: {price}")
                 price = 0.0
             else:
-                price = float(price)
+                try:
+                    price = float(price)
+                except (ValueError, TypeError):
+                    self.logger.warning(f"Could not convert price to float: {price}")
+                    price = 0.0
             
             # Ensure quantity is a valid float
             if quantity is None or (isinstance(quantity, str) and quantity.lower() == 'none'):
                 self.logger.warning(f"Invalid quantity value for position opened notification: {quantity}")
                 quantity = 0.0
             else:
-                quantity = float(quantity)
+                try:
+                    quantity = float(quantity)
+                except (ValueError, TypeError):
+                    self.logger.warning(f"Could not convert quantity to float: {quantity}")
+                    quantity = 0.0
             
             score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
             
@@ -155,10 +163,11 @@ class TelegramNotifier:
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
             return self.send_message(message.strip())
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"Error formatting position opened notification: {e}. price={price}, quantity={quantity}")
+        except Exception as e:
+            self.logger.error(f"Error formatting position opened notification: {e}. price={price}, quantity={quantity}", exc_info=True)
             # Send simplified notification without formatting
-            simplified_message = f"""
+            try:
+                simplified_message = f"""
 {emoji} <b>Position Opened</b>
 
 📊 Symbol: <code>{symbol}</code>
@@ -167,7 +176,10 @@ class TelegramNotifier:
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-            return self.send_message(simplified_message.strip())
+                return self.send_message(simplified_message.strip())
+            except Exception as e2:
+                self.logger.error(f"Failed to send even simplified notification: {e2}")
+                return False
     
     def notify_position_closed(self, symbol: str, side: str, quantity: float,
                               entry_price: float, exit_price: float, 
@@ -192,30 +204,50 @@ class TelegramNotifier:
         """
         try:
             # Ensure all numeric values are valid floats
-            if entry_price is None or (isinstance(entry_price, str) and entry_price.lower() == 'none'):
+            try:
+                if entry_price is None or (isinstance(entry_price, str) and entry_price.lower() == 'none'):
+                    entry_price = 0.0
+                else:
+                    entry_price = float(entry_price)
+            except (ValueError, TypeError):
+                self.logger.warning(f"Could not convert entry_price to float: {entry_price}")
                 entry_price = 0.0
-            else:
-                entry_price = float(entry_price)
             
-            if exit_price is None or (isinstance(exit_price, str) and exit_price.lower() == 'none'):
+            try:
+                if exit_price is None or (isinstance(exit_price, str) and exit_price.lower() == 'none'):
+                    exit_price = 0.0
+                else:
+                    exit_price = float(exit_price)
+            except (ValueError, TypeError):
+                self.logger.warning(f"Could not convert exit_price to float: {exit_price}")
                 exit_price = 0.0
-            else:
-                exit_price = float(exit_price)
             
-            if quantity is None or (isinstance(quantity, str) and quantity.lower() == 'none'):
+            try:
+                if quantity is None or (isinstance(quantity, str) and quantity.lower() == 'none'):
+                    quantity = 0.0
+                else:
+                    quantity = float(quantity)
+            except (ValueError, TypeError):
+                self.logger.warning(f"Could not convert quantity to float: {quantity}")
                 quantity = 0.0
-            else:
-                quantity = float(quantity)
             
-            if pnl is None or (isinstance(pnl, str) and pnl.lower() == 'none'):
+            try:
+                if pnl is None or (isinstance(pnl, str) and pnl.lower() == 'none'):
+                    pnl = 0.0
+                else:
+                    pnl = float(pnl)
+            except (ValueError, TypeError):
+                self.logger.warning(f"Could not convert pnl to float: {pnl}")
                 pnl = 0.0
-            else:
-                pnl = float(pnl)
             
-            if pnl_percent is None or (isinstance(pnl_percent, str) and pnl_percent.lower() == 'none'):
+            try:
+                if pnl_percent is None or (isinstance(pnl_percent, str) and pnl_percent.lower() == 'none'):
+                    pnl_percent = 0.0
+                else:
+                    pnl_percent = float(pnl_percent)
+            except (ValueError, TypeError):
+                self.logger.warning(f"Could not convert pnl_percent to float: {pnl_percent}")
                 pnl_percent = 0.0
-            else:
-                pnl_percent = float(pnl_percent)
             
             profit = pnl > 0
             emoji = "✅" if profit else "❌"
@@ -238,10 +270,12 @@ class TelegramNotifier:
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
             return self.send_message(message.strip())
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"Error formatting position closed notification: {e}")
+        except Exception as e:
+            self.logger.error(f"Error formatting position closed notification: {e}", exc_info=True)
             # Send simplified notification
-            simplified_message = f"""
+            try:
+                emoji = "✅" if pnl > 0 else "❌"
+                simplified_message = f"""
 {emoji} <b>Position Closed</b>
 
 📊 Symbol: <code>{symbol}</code>
@@ -250,7 +284,10 @@ class TelegramNotifier:
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-            return self.send_message(simplified_message.strip())
+                return self.send_message(simplified_message.strip())
+            except Exception as e2:
+                self.logger.error(f"Failed to send even simplified notification: {e2}")
+                return False
     
     def notify_stop_loss_triggered(self, symbol: str, side: str, quantity: float,
                                    entry_price: float, stop_price: float,
