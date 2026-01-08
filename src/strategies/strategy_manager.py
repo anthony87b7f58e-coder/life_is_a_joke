@@ -116,20 +116,24 @@ class StrategyManager:
                     balance = self.client.fetch_balance()
                     self.logger.debug(f"Balance structure keys: {list(balance.keys())}")
                     
-                    # CCXT balance structure: balance['free']['USDT'] or balance['USDT']['free']
-                    # Try both access patterns for maximum compatibility
+                    # CCXT standard structure: balance['free'][currency_code]
+                    # balance['free'] contains available balances by currency
+                    # balance['total'] contains total balances (free + locked)
                     try:
-                        if 'free' in balance and isinstance(balance['free'], dict) and 'USDT' in balance['free']:
-                            usdt_balance = float(balance['free']['USDT'])
-                            self.logger.debug(f"Found USDT in balance['free']['USDT']: {usdt_balance}")
-                        elif 'USDT' in balance and isinstance(balance['USDT'], dict) and 'free' in balance['USDT']:
-                            usdt_balance = float(balance['USDT']['free'])
-                            self.logger.debug(f"Found USDT in balance['USDT']['free']: {usdt_balance}")
+                        if 'free' in balance and isinstance(balance['free'], dict):
+                            # Check for USDT in free balances
+                            usdt_balance = float(balance['free'].get('USDT', 0))
+                            self.logger.debug(f"USDT balance from balance['free']: {usdt_balance}")
+                            self.logger.debug(f"Available currencies in balance['free']: {list(balance['free'].keys())}")
+                        elif 'USDT' in balance and isinstance(balance['USDT'], dict):
+                            # Alternative structure: some exchanges may use balance[currency][type]
+                            usdt_balance = float(balance['USDT'].get('free', 0))
+                            self.logger.debug(f"USDT balance from balance['USDT']['free']: {usdt_balance}")
                         else:
-                            self.logger.warning(f"Could not find USDT in expected locations. Balance keys: {list(balance.keys())}")
-                            if 'free' in balance and isinstance(balance['free'], dict):
-                                self.logger.debug(f"balance['free'] currencies: {list(balance['free'].keys())}")
-                    except (KeyError, TypeError, ValueError) as e:
+                            self.logger.warning(f"Unexpected balance structure. Balance keys: {list(balance.keys())}")
+                            if 'free' in balance:
+                                self.logger.debug(f"Type of balance['free']: {type(balance.get('free'))}")
+                    except (TypeError, ValueError, AttributeError) as e:
                         self.logger.warning(f"Error extracting USDT balance: {e}")
                     
                     self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
@@ -270,20 +274,24 @@ class StrategyManager:
                     balance = self.client.fetch_balance()
                     self.logger.debug(f"Balance structure keys: {list(balance.keys())}")
                     
-                    # CCXT balance structure: balance['free']['USDT'] or balance['USDT']['free']
-                    # Try both access patterns for maximum compatibility
+                    # CCXT standard structure: balance['free'][currency_code]
+                    # balance['free'] contains available balances by currency
+                    # balance['total'] contains total balances (free + locked)
                     try:
-                        if 'free' in balance and isinstance(balance['free'], dict) and 'USDT' in balance['free']:
-                            usdt_balance = float(balance['free']['USDT'])
-                            self.logger.debug(f"Found USDT in balance['free']['USDT']: {usdt_balance}")
-                        elif 'USDT' in balance and isinstance(balance['USDT'], dict) and 'free' in balance['USDT']:
-                            usdt_balance = float(balance['USDT']['free'])
-                            self.logger.debug(f"Found USDT in balance['USDT']['free']: {usdt_balance}")
+                        if 'free' in balance and isinstance(balance['free'], dict):
+                            # Check for USDT in free balances
+                            usdt_balance = float(balance['free'].get('USDT', 0))
+                            self.logger.debug(f"USDT balance from balance['free']: {usdt_balance}")
+                            self.logger.debug(f"Available currencies in balance['free']: {list(balance['free'].keys())}")
+                        elif 'USDT' in balance and isinstance(balance['USDT'], dict):
+                            # Alternative structure: some exchanges may use balance[currency][type]
+                            usdt_balance = float(balance['USDT'].get('free', 0))
+                            self.logger.debug(f"USDT balance from balance['USDT']['free']: {usdt_balance}")
                         else:
-                            self.logger.warning(f"Could not find USDT in expected locations. Balance keys: {list(balance.keys())}")
-                            if 'free' in balance and isinstance(balance['free'], dict):
-                                self.logger.debug(f"balance['free'] currencies: {list(balance['free'].keys())}")
-                    except (KeyError, TypeError, ValueError) as e:
+                            self.logger.warning(f"Unexpected balance structure. Balance keys: {list(balance.keys())}")
+                            if 'free' in balance:
+                                self.logger.debug(f"Type of balance['free']: {type(balance.get('free'))}")
+                    except (TypeError, ValueError, AttributeError) as e:
                         self.logger.warning(f"Error extracting USDT balance: {e}")
                     
                     self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
