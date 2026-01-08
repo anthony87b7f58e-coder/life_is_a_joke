@@ -121,20 +121,33 @@ class StrategyManager:
                     # balance['total'] contains total balances (free + locked)
                     try:
                         if 'free' in balance and isinstance(balance['free'], dict):
+                            # Log all available currencies and their balances for debugging
+                            self.logger.info(f"Available currencies: {list(balance['free'].keys())}")
+                            currencies_with_balance = {k: v for k, v in balance['free'].items() if v > 0}
+                            if currencies_with_balance:
+                                self.logger.info(f"Non-zero balances: {currencies_with_balance}")
+                            else:
+                                self.logger.warning("No currencies with non-zero balance found!")
+                            
                             # Check for USDT in free balances
                             usdt_balance = float(balance['free'].get('USDT', 0))
-                            self.logger.debug(f"USDT balance from balance['free']: {usdt_balance}")
-                            self.logger.debug(f"Available currencies in balance['free']: {list(balance['free'].keys())}")
+                            self.logger.info(f"USDT balance from balance['free']: {usdt_balance}")
+                            
+                            # If USDT is 0, check total balance (might be locked/in orders)
+                            if usdt_balance == 0 and 'total' in balance and isinstance(balance['total'], dict):
+                                total_usdt = float(balance['total'].get('USDT', 0))
+                                if total_usdt > 0:
+                                    self.logger.warning(f"USDT total balance is {total_usdt} but free balance is 0 (funds may be locked in orders)")
                         elif 'USDT' in balance and isinstance(balance['USDT'], dict):
                             # Alternative structure: some exchanges may use balance[currency][type]
                             usdt_balance = float(balance['USDT'].get('free', 0))
-                            self.logger.debug(f"USDT balance from balance['USDT']['free']: {usdt_balance}")
+                            self.logger.info(f"USDT balance from balance['USDT']['free']: {usdt_balance}")
                         else:
                             self.logger.warning(f"Unexpected balance structure. Balance keys: {list(balance.keys())}")
                             if 'free' in balance:
-                                self.logger.debug(f"Type of balance['free']: {type(balance.get('free'))}")
+                                self.logger.warning(f"Type of balance['free']: {type(balance.get('free'))}")
                     except (TypeError, ValueError, AttributeError) as e:
-                        self.logger.warning(f"Error extracting USDT balance: {e}")
+                        self.logger.error(f"Error extracting USDT balance: {e}", exc_info=True)
                     
                     self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
                 else:
@@ -279,20 +292,33 @@ class StrategyManager:
                     # balance['total'] contains total balances (free + locked)
                     try:
                         if 'free' in balance and isinstance(balance['free'], dict):
+                            # Log all available currencies and their balances for debugging
+                            self.logger.info(f"Available currencies: {list(balance['free'].keys())}")
+                            currencies_with_balance = {k: v for k, v in balance['free'].items() if v > 0}
+                            if currencies_with_balance:
+                                self.logger.info(f"Non-zero balances: {currencies_with_balance}")
+                            else:
+                                self.logger.warning("No currencies with non-zero balance found!")
+                            
                             # Check for USDT in free balances
                             usdt_balance = float(balance['free'].get('USDT', 0))
-                            self.logger.debug(f"USDT balance from balance['free']: {usdt_balance}")
-                            self.logger.debug(f"Available currencies in balance['free']: {list(balance['free'].keys())}")
+                            self.logger.info(f"USDT balance from balance['free']: {usdt_balance}")
+                            
+                            # If USDT is 0, check total balance (might be locked/in orders)
+                            if usdt_balance == 0 and 'total' in balance and isinstance(balance['total'], dict):
+                                total_usdt = float(balance['total'].get('USDT', 0))
+                                if total_usdt > 0:
+                                    self.logger.warning(f"USDT total balance is {total_usdt} but free balance is 0 (funds may be locked in orders)")
                         elif 'USDT' in balance and isinstance(balance['USDT'], dict):
                             # Alternative structure: some exchanges may use balance[currency][type]
                             usdt_balance = float(balance['USDT'].get('free', 0))
-                            self.logger.debug(f"USDT balance from balance['USDT']['free']: {usdt_balance}")
+                            self.logger.info(f"USDT balance from balance['USDT']['free']: {usdt_balance}")
                         else:
                             self.logger.warning(f"Unexpected balance structure. Balance keys: {list(balance.keys())}")
                             if 'free' in balance:
-                                self.logger.debug(f"Type of balance['free']: {type(balance.get('free'))}")
+                                self.logger.warning(f"Type of balance['free']: {type(balance.get('free'))}")
                     except (TypeError, ValueError, AttributeError) as e:
-                        self.logger.warning(f"Error extracting USDT balance: {e}")
+                        self.logger.error(f"Error extracting USDT balance: {e}", exc_info=True)
                     
                     self.logger.info(f"Available USDT balance: ${usdt_balance:.2f}")
                 else:
