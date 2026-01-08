@@ -124,11 +124,26 @@ class TelegramNotifier:
         Returns:
             True if sent successfully
         """
-        emoji = "🟢" if side.upper() == "BUY" else "🔴"
-        
-        score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
-        
-        message = f"""
+        try:
+            emoji = "🟢" if side.upper() == "BUY" else "🔴"
+            
+            # Ensure price is a valid float
+            if price is None or (isinstance(price, str) and price.lower() == 'none'):
+                self.logger.warning(f"Invalid price value for position opened notification: {price}")
+                price = 0.0
+            else:
+                price = float(price)
+            
+            # Ensure quantity is a valid float
+            if quantity is None or (isinstance(quantity, str) and quantity.lower() == 'none'):
+                self.logger.warning(f"Invalid quantity value for position opened notification: {quantity}")
+                quantity = 0.0
+            else:
+                quantity = float(quantity)
+            
+            score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
+            
+            message = f"""
 {emoji} <b>Position Opened</b>
 
 📊 Symbol: <code>{symbol}</code>
@@ -139,7 +154,20 @@ class TelegramNotifier:
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-        return self.send_message(message.strip())
+            return self.send_message(message.strip())
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Error formatting position opened notification: {e}. price={price}, quantity={quantity}")
+            # Send simplified notification without formatting
+            simplified_message = f"""
+{emoji} <b>Position Opened</b>
+
+📊 Symbol: <code>{symbol}</code>
+📈 Side: <b>{side.upper()}</b>
+🎯 Strategy: <i>{strategy}</i>
+
+⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            return self.send_message(simplified_message.strip())
     
     def notify_position_closed(self, symbol: str, side: str, quantity: float,
                               entry_price: float, exit_price: float, 
@@ -162,13 +190,40 @@ class TelegramNotifier:
         Returns:
             True if sent successfully
         """
-        profit = pnl > 0
-        emoji = "✅" if profit else "❌"
-        pnl_emoji = "💰" if profit else "💸"
-        
-        score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
-        
-        message = f"""
+        try:
+            # Ensure all numeric values are valid floats
+            if entry_price is None or (isinstance(entry_price, str) and entry_price.lower() == 'none'):
+                entry_price = 0.0
+            else:
+                entry_price = float(entry_price)
+            
+            if exit_price is None or (isinstance(exit_price, str) and exit_price.lower() == 'none'):
+                exit_price = 0.0
+            else:
+                exit_price = float(exit_price)
+            
+            if quantity is None or (isinstance(quantity, str) and quantity.lower() == 'none'):
+                quantity = 0.0
+            else:
+                quantity = float(quantity)
+            
+            if pnl is None or (isinstance(pnl, str) and pnl.lower() == 'none'):
+                pnl = 0.0
+            else:
+                pnl = float(pnl)
+            
+            if pnl_percent is None or (isinstance(pnl_percent, str) and pnl_percent.lower() == 'none'):
+                pnl_percent = 0.0
+            else:
+                pnl_percent = float(pnl_percent)
+            
+            profit = pnl > 0
+            emoji = "✅" if profit else "❌"
+            pnl_emoji = "💰" if profit else "💸"
+            
+            score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
+            
+            message = f"""
 {emoji} <b>Position Closed</b>
 
 📊 Symbol: <code>{symbol}</code>
@@ -182,7 +237,20 @@ class TelegramNotifier:
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-        return self.send_message(message.strip())
+            return self.send_message(message.strip())
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Error formatting position closed notification: {e}")
+            # Send simplified notification
+            simplified_message = f"""
+{emoji} <b>Position Closed</b>
+
+📊 Symbol: <code>{symbol}</code>
+📈 Side: <b>{side.upper()}</b>
+🎯 Strategy: <i>{strategy}</i>
+
+⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            return self.send_message(simplified_message.strip())
     
     def notify_stop_loss_triggered(self, symbol: str, side: str, quantity: float,
                                    entry_price: float, stop_price: float,
@@ -202,7 +270,15 @@ class TelegramNotifier:
         Returns:
             True if sent successfully
         """
-        message = f"""
+        try:
+            # Ensure all numeric values are valid floats
+            entry_price = float(entry_price) if entry_price is not None else 0.0
+            stop_price = float(stop_price) if stop_price is not None else 0.0
+            quantity = float(quantity) if quantity is not None else 0.0
+            loss = float(loss) if loss is not None else 0.0
+            loss_percent = float(loss_percent) if loss_percent is not None else 0.0
+            
+            message = f"""
 ⚠️ <b>Stop-Loss Triggered</b>
 
 📊 Symbol: <code>{symbol}</code>
@@ -215,7 +291,10 @@ class TelegramNotifier:
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-        return self.send_message(message.strip())
+            return self.send_message(message.strip())
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Error formatting stop-loss notification: {e}")
+            return False
     
     def notify_take_profit_triggered(self, symbol: str, side: str, quantity: float,
                                      entry_price: float, tp_price: float,
@@ -235,7 +314,15 @@ class TelegramNotifier:
         Returns:
             True if sent successfully
         """
-        message = f"""
+        try:
+            # Ensure all numeric values are valid floats
+            entry_price = float(entry_price) if entry_price is not None else 0.0
+            tp_price = float(tp_price) if tp_price is not None else 0.0
+            quantity = float(quantity) if quantity is not None else 0.0
+            profit = float(profit) if profit is not None else 0.0
+            profit_percent = float(profit_percent) if profit_percent is not None else 0.0
+            
+            message = f"""
 🎯 <b>Take-Profit Triggered</b>
 
 📊 Symbol: <code>{symbol}</code>
@@ -248,7 +335,10 @@ class TelegramNotifier:
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-        return self.send_message(message.strip())
+            return self.send_message(message.strip())
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Error formatting take-profit notification: {e}")
+            return False
     
     def notify_daily_summary(self, total_trades: int, winning_trades: int,
                            losing_trades: int, total_pnl: float,
