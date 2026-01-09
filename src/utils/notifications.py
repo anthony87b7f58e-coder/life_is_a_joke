@@ -109,7 +109,8 @@ class TelegramNotifier:
             return False
     
     def notify_position_opened(self, symbol: str, side: str, quantity: float, 
-                              price: float, strategy: str = "Unknown", score: int = None) -> bool:
+                              price: float, strategy: str = "Unknown", score: int = None, 
+                              open_positions_count: int = None) -> bool:
         """
         Notify about opened position
         
@@ -120,6 +121,7 @@ class TelegramNotifier:
             price: Entry price
             strategy: Strategy name
             score: Signal confidence score (0-100)
+            open_positions_count: Number of currently open positions
             
         Returns:
             True if sent successfully
@@ -127,29 +129,22 @@ class TelegramNotifier:
         emoji = "🟢" if str(side).upper() == "BUY" else "🔴"  # Define early for except block
         
         try:
-            # Ensure price is a valid float
-            if price is None or (isinstance(price, str) and price.lower() == 'none'):
-                self.logger.warning(f"Invalid price value for position opened notification: {price}")
+            # SAFELY convert all numeric values to float with fallback
+            try:
+                price = float(price) if price not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                self.logger.warning(f"Could not convert price '{price}' to float, using 0.0")
                 price = 0.0
-            else:
-                try:
-                    price = float(price)
-                except (ValueError, TypeError):
-                    self.logger.warning(f"Could not convert price to float: {price}")
-                    price = 0.0
             
-            # Ensure quantity is a valid float
-            if quantity is None or (isinstance(quantity, str) and quantity.lower() == 'none'):
-                self.logger.warning(f"Invalid quantity value for position opened notification: {quantity}")
+            try:
+                quantity = float(quantity) if quantity not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                self.logger.warning(f"Could not convert quantity '{quantity}' to float, using 0.0")
                 quantity = 0.0
-            else:
-                try:
-                    quantity = float(quantity)
-                except (ValueError, TypeError):
-                    self.logger.warning(f"Could not convert quantity to float: {quantity}")
-                    quantity = 0.0
             
+            # Build message with safe string formatting
             score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
+            positions_text = f"\n📋 Open Positions: <b>{open_positions_count}</b>" if open_positions_count is not None else ""
             
             message = f"""
 {emoji} <b>Position Opened</b>
@@ -158,7 +153,7 @@ class TelegramNotifier:
 📈 Side: <b>{side.upper()}</b>
 💰 Quantity: <code>{quantity}</code>
 💵 Price: <code>${price:,.2f}</code>
-🎯 Strategy: <i>{strategy}</i>{score_text}
+🎯 Strategy: <i>{strategy}</i>{score_text}{positions_text}
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
@@ -184,7 +179,8 @@ class TelegramNotifier:
     def notify_position_closed(self, symbol: str, side: str, quantity: float,
                               entry_price: float, exit_price: float, 
                               pnl: float, pnl_percent: float, 
-                              strategy: str = "Unknown", score: int = None) -> bool:
+                              strategy: str = "Unknown", score: int = None,
+                              open_positions_count: int = None) -> bool:
         """
         Notify about closed position
         
@@ -198,55 +194,41 @@ class TelegramNotifier:
             pnl_percent: Profit/Loss percentage
             strategy: Strategy name
             score: Signal confidence score (0-100)
+            open_positions_count: Number of currently open positions
             
         Returns:
             True if sent successfully
         """
         try:
-            # Ensure all numeric values are valid floats
+            # SAFELY convert all numeric values to float with fallback
             try:
-                if entry_price is None or (isinstance(entry_price, str) and entry_price.lower() == 'none'):
-                    entry_price = 0.0
-                else:
-                    entry_price = float(entry_price)
-            except (ValueError, TypeError):
-                self.logger.warning(f"Could not convert entry_price to float: {entry_price}")
+                entry_price = float(entry_price) if entry_price not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                self.logger.warning(f"Could not convert entry_price '{entry_price}' to float, using 0.0")
                 entry_price = 0.0
             
             try:
-                if exit_price is None or (isinstance(exit_price, str) and exit_price.lower() == 'none'):
-                    exit_price = 0.0
-                else:
-                    exit_price = float(exit_price)
-            except (ValueError, TypeError):
-                self.logger.warning(f"Could not convert exit_price to float: {exit_price}")
+                exit_price = float(exit_price) if exit_price not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                self.logger.warning(f"Could not convert exit_price '{exit_price}' to float, using 0.0")
                 exit_price = 0.0
             
             try:
-                if quantity is None or (isinstance(quantity, str) and quantity.lower() == 'none'):
-                    quantity = 0.0
-                else:
-                    quantity = float(quantity)
-            except (ValueError, TypeError):
-                self.logger.warning(f"Could not convert quantity to float: {quantity}")
+                quantity = float(quantity) if quantity not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                self.logger.warning(f"Could not convert quantity '{quantity}' to float, using 0.0")
                 quantity = 0.0
             
             try:
-                if pnl is None or (isinstance(pnl, str) and pnl.lower() == 'none'):
-                    pnl = 0.0
-                else:
-                    pnl = float(pnl)
-            except (ValueError, TypeError):
-                self.logger.warning(f"Could not convert pnl to float: {pnl}")
+                pnl = float(pnl) if pnl not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                self.logger.warning(f"Could not convert pnl '{pnl}' to float, using 0.0")
                 pnl = 0.0
             
             try:
-                if pnl_percent is None or (isinstance(pnl_percent, str) and pnl_percent.lower() == 'none'):
-                    pnl_percent = 0.0
-                else:
-                    pnl_percent = float(pnl_percent)
-            except (ValueError, TypeError):
-                self.logger.warning(f"Could not convert pnl_percent to float: {pnl_percent}")
+                pnl_percent = float(pnl_percent) if pnl_percent not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                self.logger.warning(f"Could not convert pnl_percent '{pnl_percent}' to float, using 0.0")
                 pnl_percent = 0.0
             
             profit = pnl > 0
@@ -254,6 +236,7 @@ class TelegramNotifier:
             pnl_emoji = "💰" if profit else "💸"
             
             score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
+            positions_text = f"\n📋 Open Positions: <b>{open_positions_count}</b>" if open_positions_count is not None else ""
             
             message = f"""
 {emoji} <b>Position Closed</b>
@@ -265,7 +248,7 @@ class TelegramNotifier:
 📤 Exit: <code>${exit_price:,.2f}</code>
 
 {pnl_emoji} P&L: <b>${pnl:,.2f}</b> ({pnl_percent:+.2f}%)
-🎯 Strategy: <i>{strategy}</i>{score_text}
+🎯 Strategy: <i>{strategy}</i>{score_text}{positions_text}
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
