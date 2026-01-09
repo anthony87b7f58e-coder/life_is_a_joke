@@ -237,8 +237,22 @@ class StrategyManager:
                         quantity=quantity
                     )
                     order_id = order.get('orderId')
-                    executed_price = float(order.get('price', price))
-                    executed_qty = float(order.get('executedQty', quantity))
+                    
+                    # SAFELY convert order response values with comprehensive fallback
+                    raw_price = order.get('price', price)
+                    raw_qty = order.get('executedQty', quantity)
+                    
+                    try:
+                        executed_price = float(raw_price) if raw_price not in [None, 'None', 'none', ''] else float(price)
+                    except (ValueError, TypeError, AttributeError):
+                        self.logger.warning(f"Could not convert price '{raw_price}' to float, using signal price {price}")
+                        executed_price = float(price)
+                    
+                    try:
+                        executed_qty = float(raw_qty) if raw_qty not in [None, 'None', 'none', ''] else float(quantity)
+                    except (ValueError, TypeError, AttributeError):
+                        self.logger.warning(f"Could not convert quantity '{raw_qty}' to float, using calculated quantity {quantity}")
+                        executed_qty = float(quantity)
                     
                     self.logger.info(f"BUY order executed: Order ID {order_id}, Price: {executed_price}, Quantity: {executed_qty}")
                     
@@ -446,8 +460,22 @@ class StrategyManager:
                         quantity=quantity
                     )
                     order_id = order.get('orderId')
-                    executed_price = float(order.get('price', price))
-                    executed_qty = float(order.get('executedQty', quantity))
+                    
+                    # SAFELY convert order response values with comprehensive fallback
+                    raw_price = order.get('price', price)
+                    raw_qty = order.get('executedQty', quantity)
+                    
+                    try:
+                        executed_price = float(raw_price) if raw_price not in [None, 'None', 'none', ''] else float(price)
+                    except (ValueError, TypeError, AttributeError):
+                        self.logger.warning(f"Could not convert price '{raw_price}' to float, using signal price {price}")
+                        executed_price = float(price)
+                    
+                    try:
+                        executed_qty = float(raw_qty) if raw_qty not in [None, 'None', 'none', ''] else float(quantity)
+                    except (ValueError, TypeError, AttributeError):
+                        self.logger.warning(f"Could not convert quantity '{raw_qty}' to float, using calculated quantity {quantity}")
+                        executed_qty = float(quantity)
                     
                     self.logger.info(f"SELL order executed: Order ID {order_id}, Price: {executed_price}, Quantity: {executed_qty}")
                     
