@@ -6,6 +6,7 @@ Main bot class that coordinates all components
 import time
 import logging
 from typing import Optional
+from datetime import datetime
 
 from core.config import Config
 from core.database import Database
@@ -28,6 +29,7 @@ class TradingBot:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.running = False
+        self.last_hourly_notification = None
         
         # Validate configuration
         if not config.validate():
@@ -117,6 +119,9 @@ class TradingBot:
             # Main loop
             while self.running:
                 try:
+                    # Send hourly status update
+                    self._send_hourly_notification_if_needed()
+                    
                     # Check risk limits
                     if not self.risk_manager.check_daily_limits():
                         self.logger.warning("Daily risk limits reached, skipping trading cycle")
@@ -168,6 +173,76 @@ class TradingBot:
             self.db.close()
         
         self.logger.info("Trading bot stopped")
+    
+    def _send_hourly_notification_if_needed(self):
+        """Send hourly status notification if an hour has passed"""
+        if not self.notifier or not self.notifier.enabled:
+            return
+        
+        try:
+            current_time = datetime.now()
+            
+            # Check if an hour has passed since last notification
+            if self.last_hourly_notification is None or \
+               (current_time - self.last_hourly_notification).total_seconds() >= 3600:
+                
+                self.logger.info("Sending hourly status notification...")
+                
+                # Get open positions count
+                open_positions = self.db.get_open_positions()
+                open_positions_count = len(open_positions)
+                
+                # Get account balances
+                try:
+                    balance_data = {}
+                    account_balance = self.exchange.get_balance()
+                    
+                    # Extract balances from CCXT format
+                    if 'free' in account_balance:
+                        for currency, amount in account_balance['free'].items():
+                            if amount and float(amount) > 0:
+                                balance_data[currency] = amount
+                    elif 'balances' in account_balance:
+                        # Binance legacy format
+                        for balance in account_balance['balances']:
+                            free_amount = float(balance.get('free', 0))
+                            if free_amount > 0:
+                                balance_data[balance['asset']] = free_amount
+                    else:
+                        # Fallback: try direct balance dictionary
+                        for key, value in account_balance.items():
+                            if isinstance(value, (int, float, str)) and key not in ['info', 'timestamp', 'datetime']:
+                                try:
+                                    amount = float(value)
+                                    if amount > 0:
+                                        balance_data[key] = amount
+                                except (ValueError, TypeError):
+                                    pass
+                    
+                    # If no balances found, add USDT as 0
+                    if not balance_data:
+                        balance_data = {'USDT': 0}
+                    
+                except Exception as e:
+                    self.logger.error(f"Error fetching balances: {e}")
+                    balance_data = {'USDT': 0}
+                
+                # Get daily P/L
+                daily_pnl = self.db.get_daily_profit_loss()
+                
+                # Send notification
+                self.notifier.notify_hourly_summary(
+                    open_positions_count=open_positions_count,
+                    balance_data=balance_data,
+                    daily_pnl=daily_pnl
+                )
+                
+                # Update last notification time
+                self.last_hourly_notification = current_time
+                self.logger.info("Hourly status notification sent successfully")
+                
+        except Exception as e:
+            self.logger.error(f"Error sending hourly notification: {e}", exc_info=True)
     
     def _health_check(self):
         """Perform internal health check"""

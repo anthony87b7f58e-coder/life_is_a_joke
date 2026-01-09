@@ -484,6 +484,105 @@ class TelegramNotifier:
 """
         return self.send_message(message.strip())
     
+    def notify_hourly_summary(self, open_positions_count: int, 
+                             balance_data: Dict[str, float],
+                             daily_pnl: float,
+                             total_pnl: float = None) -> bool:
+        """
+        Send hourly status summary
+        
+        Args:
+            open_positions_count: Number of currently open positions
+            balance_data: Dictionary of currency balances (e.g., {'USDT': 1000, 'BTC': 0.5})
+            daily_pnl: Daily profit/loss in USDT
+            total_pnl: Total profit/loss (optional)
+            
+        Returns:
+            True if sent successfully
+        """
+        try:
+            # Format balance data
+            balance_lines = []
+            for currency, amount in balance_data.items():
+                try:
+                    amount_float = float(amount) if amount not in [None, 'None', 'none', ''] else 0.0
+                except (ValueError, TypeError, AttributeError):
+                    amount_float = 0.0
+                
+                # Skip zero balances or add them with symbol
+                if amount_float > 0:
+                    if currency == 'USDT' or currency.endswith('USD'):
+                        balance_lines.append(f"💵 {currency}: <code>${amount_float:,.2f}</code>")
+                    else:
+                        balance_lines.append(f"🪙 {currency}: <code>{amount_float:.8f}</code>")
+            
+            # If no balances, show message
+            if not balance_lines:
+                balance_lines.append("💵 No significant balances")
+            
+            # Safe P/L conversion
+            try:
+                daily_pnl = float(daily_pnl) if daily_pnl not in [None, 'None', 'none', ''] else 0.0
+            except (ValueError, TypeError, AttributeError):
+                daily_pnl = 0.0
+            
+            # P/L emoji and formatting
+            if daily_pnl > 0:
+                pnl_emoji = "💰"
+                pnl_sign = "+"
+            elif daily_pnl < 0:
+                pnl_emoji = "💸"
+                pnl_sign = ""
+            else:
+                pnl_emoji = "➖"
+                pnl_sign = ""
+            
+            # Build message
+            balance_text = "\n".join(balance_lines)
+            
+            message = f"""
+📊 <b>Hourly Status Summary</b>
+
+📋 Open Positions: <b>{open_positions_count}</b>
+
+💰 <b>Balances:</b>
+{balance_text}
+
+{pnl_emoji} <b>Daily P&amp;L:</b> <code>{pnl_sign}${daily_pnl:,.2f}</code>
+"""
+            
+            # Add total P/L if provided
+            if total_pnl is not None:
+                try:
+                    total_pnl = float(total_pnl) if total_pnl not in [None, 'None', 'none', ''] else 0.0
+                except (ValueError, TypeError, AttributeError):
+                    total_pnl = 0.0
+                
+                total_emoji = "💰" if total_pnl > 0 else "💸" if total_pnl < 0 else "➖"
+                total_sign = "+" if total_pnl > 0 else ""
+                message += f"{total_emoji} <b>Total P&amp;L:</b> <code>{total_sign}${total_pnl:,.2f}</code>\n"
+            
+            message += f"\n⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            
+            return self.send_message(message.strip())
+            
+        except Exception as e:
+            self.logger.error(f"Error formatting hourly summary notification: {e}", exc_info=True)
+            # Send simplified notification
+            try:
+                simplified_message = f"""
+📊 <b>Hourly Status Summary</b>
+
+📋 Open Positions: <b>{open_positions_count}</b>
+💰 Daily P&amp;L: <code>${daily_pnl:,.2f}</code>
+
+⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+                return self.send_message(simplified_message.strip())
+            except Exception as e2:
+                self.logger.error(f"Failed to send even simplified hourly summary: {e2}")
+                return False
+    
     def notify_bot_stopped(self, reason: str = "Manual stop") -> bool:
         """
         Notify about bot shutdown
