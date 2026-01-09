@@ -108,6 +108,15 @@ class StrategyManager:
             price = signal['price']
             score = signal.get('confidence')  # Get signal score
             
+            # CHECK RISK LIMITS FIRST - CRITICAL!
+            if not self.risk_manager.check_daily_limits():
+                self.logger.warning(f"Skipping BUY {symbol}: Daily limits reached")
+                return
+            
+            if not self.risk_manager.check_position_limits():
+                self.logger.warning(f"Skipping BUY {symbol}: Position limits reached")
+                return
+            
             # Get account balance
             usdt_balance = 0
             try:
@@ -253,24 +262,30 @@ class StrategyManager:
             
             self.logger.info(f"Position opened: ID {position_id}")
             
-            # Send Telegram notification with score
-            notifier = get_notifier()
-            if notifier:
-                notifier.notify_position_opened(
-                    symbol=symbol,
-                    side='BUY',
-                    quantity=quantity,
-                    price=price,
-                    strategy=strategy.name,
-                    score=score
-                )
+            # Send Telegram notification with score - wrap in try-except to prevent exceptions
+            try:
+                notifier = get_notifier()
+                if notifier:
+                    notifier.notify_position_opened(
+                        symbol=symbol,
+                        side='BUY',
+                        quantity=quantity,
+                        price=price,
+                        strategy=strategy.name,
+                        score=score
+                    )
+            except Exception as notif_error:
+                self.logger.error(f"Failed to send position opened notification: {notif_error}", exc_info=True)
             
         except Exception as e:
             self.logger.error(f"Error executing buy order: {str(e)}", exc_info=True)
-            # Send error notification
-            notifier = get_notifier()
-            if notifier:
-                notifier.notify_error("Buy Order Failed", str(e), f"Symbol: {signal.get('symbol')}")
+            # Send error notification - also wrap in try-except
+            try:
+                notifier = get_notifier()
+                if notifier:
+                    notifier.notify_error("Buy Order Failed", str(e), f"Symbol: {signal.get('symbol')}")
+            except Exception as notif_error:
+                self.logger.error(f"Failed to send error notification: {notif_error}", exc_info=True)
     
     def _execute_sell(self, signal: Dict, strategy: BaseStrategy):
         """Execute sell order (short position)"""
@@ -278,6 +293,15 @@ class StrategyManager:
             symbol = signal['symbol']
             price = signal['price']
             score = signal.get('confidence')  # Get signal score
+            
+            # CHECK RISK LIMITS FIRST - CRITICAL!
+            if not self.risk_manager.check_daily_limits():
+                self.logger.warning(f"Skipping SELL {symbol}: Daily limits reached")
+                return
+            
+            if not self.risk_manager.check_position_limits():
+                self.logger.warning(f"Skipping SELL {symbol}: Position limits reached")
+                return
             
             # Get account balance
             usdt_balance = 0
@@ -424,24 +448,30 @@ class StrategyManager:
             
             self.logger.info(f"Position opened: ID {position_id}")
             
-            # Send Telegram notification with score
-            notifier = get_notifier()
-            if notifier:
-                notifier.notify_position_opened(
-                    symbol=symbol,
-                    side='SELL',
-                    quantity=quantity,
-                    price=price,
-                    strategy=strategy.name,
-                    score=score
-                )
+            # Send Telegram notification with score - wrap in try-except to prevent exceptions
+            try:
+                notifier = get_notifier()
+                if notifier:
+                    notifier.notify_position_opened(
+                        symbol=symbol,
+                        side='SELL',
+                        quantity=quantity,
+                        price=price,
+                        strategy=strategy.name,
+                        score=score
+                    )
+            except Exception as notif_error:
+                self.logger.error(f"Failed to send position opened notification: {notif_error}", exc_info=True)
             
         except Exception as e:
             self.logger.error(f"Error executing sell order: {str(e)}", exc_info=True)
-            # Send error notification
-            notifier = get_notifier()
-            if notifier:
-                notifier.notify_error("Sell Order Failed", str(e), f"Symbol: {signal.get('symbol')}")
+            # Send error notification - also wrap in try-except
+            try:
+                notifier = get_notifier()
+                if notifier:
+                    notifier.notify_error("Sell Order Failed", str(e), f"Symbol: {signal.get('symbol')}")
+            except Exception as notif_error:
+                self.logger.error(f"Failed to send error notification: {notif_error}", exc_info=True)
     
     def _close_position(self, signal: Dict, strategy: BaseStrategy):
         """Close an open position"""
