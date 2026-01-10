@@ -24,8 +24,19 @@ class Database:
             db_path = Path(config.db_path)
             db_path.parent.mkdir(parents=True, exist_ok=True)
             
-            self.conn = sqlite3.connect(config.db_path, check_same_thread=False)
+            # Connect to database with proper settings for persistence
+            self.conn = sqlite3.connect(
+                config.db_path, 
+                check_same_thread=False,
+                isolation_level=None  # Autocommit mode for immediate persistence
+            )
             self.conn.row_factory = sqlite3.Row
+            
+            # Enable WAL mode for better concurrency and persistence
+            self.conn.execute('PRAGMA journal_mode=WAL')
+            # Ensure data is written to disk immediately
+            self.conn.execute('PRAGMA synchronous=FULL')
+            
             self.logger.info(f"Connected to SQLite database: {config.db_path}")
         else:
             raise NotImplementedError(f"Database type {config.db_type} not implemented")
@@ -187,5 +198,11 @@ class Database:
     def close(self):
         """Close database connection"""
         if self.conn:
+            # Ensure all pending transactions are committed
+            try:
+                self.conn.commit()
+            except Exception:
+                pass  # In autocommit mode, this might raise
+            
             self.conn.close()
             self.logger.info("Database connection closed")
