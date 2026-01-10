@@ -195,7 +195,7 @@ class TradingBot:
                 # Get account balances
                 try:
                     balance_data = {}
-                    account_balance = self.exchange.get_balance()
+                    account_balance = self.exchange.fetch_balance()
                     
                     # Extract balances from CCXT format
                     if 'free' in account_balance:
