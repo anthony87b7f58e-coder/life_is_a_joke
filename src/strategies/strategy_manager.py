@@ -5,9 +5,9 @@ Manages and executes trading strategies
 
 import logging
 from typing import List, Dict
-from strategies.base_strategy import BaseStrategy
-from strategies.simple_trend import SimpleTrendStrategy
-from strategies.enhanced_multi_indicator import EnhancedMultiIndicatorStrategy
+from src.strategies.base_strategy import BaseStrategy
+from src.strategies.simple_trend import SimpleTrendStrategy
+from src.strategies.enhanced_multi_indicator import EnhancedMultiIndicatorStrategy
 from utils.notifications import get_notifier
 
 

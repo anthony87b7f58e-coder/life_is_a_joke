@@ -4,7 +4,7 @@ A basic trend-following strategy using moving averages
 """
 
 from typing import List, Dict
-from strategies.base_strategy import BaseStrategy
+from src.strategies.base_strategy import BaseStrategy
 
 
 class SimpleTrendStrategy(BaseStrategy):

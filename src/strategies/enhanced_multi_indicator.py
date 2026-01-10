@@ -4,7 +4,7 @@ A comprehensive strategy using multiple proven technical indicators for better e
 """
 
 from typing import List, Dict, Tuple
-from strategies.base_strategy import BaseStrategy
+from src.strategies.base_strategy import BaseStrategy
 import logging
 
 

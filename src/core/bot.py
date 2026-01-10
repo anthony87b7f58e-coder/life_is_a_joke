@@ -12,7 +12,7 @@ from core.config import Config
 from core.database import Database
 from core.risk_manager import RiskManager
 from core.exchange_adapter import ExchangeAdapter
-from strategies.strategy_manager import StrategyManager
+from src.strategies.strategy_manager import StrategyManager
 from utils.notifications import init_notifier, get_notifier
 
 
