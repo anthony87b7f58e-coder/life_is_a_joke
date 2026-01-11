@@ -571,31 +571,74 @@ class StrategyManager:
             
             # Close position on exchange
             order_id = None
+            position_closed_on_exchange = False
+            
             if self.config.trading_enabled:
                 try:
-                    # Close position with opposite order
+                    # Verify actual balance before closing to avoid InsufficientFunds errors
+                    base_asset = symbol.replace('USDT', '').replace('USD', '').replace('BUSD', '')
                     close_side = 'sell' if side == 'BUY' else 'buy'
-                    order = self.client.create_order(
-                        symbol=symbol,
-                        side=close_side,
-                        order_type='market',
-                        quantity=quantity
-                    )
-                    order_id = order.get('orderId')
-                    exit_price = float(order.get('price', exit_price))
                     
-                    self.logger.info(f"Position closed: Order ID {order_id}, Exit price: {exit_price}")
+                    # Get actual balance for the asset we're selling
+                    if close_side == 'sell':
+                        try:
+                            balance_data = self.client.fetch_balance()
+                            actual_balance = balance_data.get(base_asset, {}).get('free', 0)
+                            
+                            # Use the minimum of stored quantity and actual balance
+                            if actual_balance <= 0:
+                                self.logger.warning(f"No {base_asset} balance to close position {position_id}. Marking as closed in database.")
+                                # Mark position as closed even though we can't close on exchange
+                                # (position was likely already closed manually or doesn't exist)
+                                exit_price = exit_price or entry_price
+                                position_closed_on_exchange = False
+                            elif actual_balance < quantity:
+                                self.logger.warning(f"Actual {base_asset} balance {actual_balance} < stored quantity {quantity}. Using actual balance.")
+                                quantity = actual_balance
+                        except Exception as balance_err:
+                            self.logger.warning(f"Could not fetch balance, using stored quantity: {balance_err}")
+                    
+                    # Only attempt to close if we have balance or it's a buy order
+                    if close_side == 'buy' or (close_side == 'sell' and quantity > 0):
+                        # Validate minimum order value before placing order
+                        estimated_value = quantity * exit_price if exit_price > 0 else 0
+                        min_order_value = 5.0  # $5 minimum for most exchanges
+                        
+                        if estimated_value > 0 and estimated_value < min_order_value:
+                            self.logger.warning(f"Order value ${estimated_value:.2f} below minimum ${min_order_value}. Marking position as closed without exchange order.")
+                            position_closed_on_exchange = False
+                        else:
+                            # Attempt to close position on exchange
+                            order = self.client.create_order(
+                                symbol=symbol,
+                                side=close_side,
+                                order_type='market',
+                                quantity=quantity
+                            )
+                            order_id = order.get('orderId')
+                            exit_price = float(order.get('price', exit_price))
+                            position_closed_on_exchange = True
+                            
+                            self.logger.info(f"Position closed: Order ID {order_id}, Exit price: {exit_price}")
                     
                 except Exception as e:
-                    self.logger.error(f"Failed to close position on exchange: {str(e)}")
-                    # Send error notification - isolated in try-except
-                    try:
-                        notifier = get_notifier()
-                        if notifier:
-                            notifier.notify_error("Position Close Failed", str(e), f"{symbol} Position ID: {position_id}")
-                    except Exception as notif_error:
-                        self.logger.error(f"Failed to send error notification: {notif_error}", exc_info=True)
-                    return
+                    error_str = str(e).lower()
+                    # Check if error is due to position not existing on exchange
+                    if 'insufficient' in error_str or 'balance' in error_str or 'exceeded lower limit' in error_str:
+                        self.logger.warning(f"Position {position_id} cannot be closed on exchange ({str(e)}). Marking as closed in database.")
+                        position_closed_on_exchange = False
+                        # Use signal price or entry price as exit price
+                        exit_price = exit_price or entry_price
+                    else:
+                        self.logger.error(f"Failed to close position on exchange: {str(e)}")
+                        # Send error notification - isolated in try-except
+                        try:
+                            notifier = get_notifier()
+                            if notifier:
+                                notifier.notify_error("Position Close Failed", str(e), f"{symbol} Position ID: {position_id}")
+                        except Exception as notif_error:
+                            self.logger.error(f"Failed to send error notification: {notif_error}", exc_info=True)
+                        return
             else:
                 self.logger.warning("Trading disabled - simulating position close")
             
