@@ -159,6 +159,13 @@ class Database:
         ''', values)
         self.conn.commit()
     
+    def get_position(self, position_id: int) -> Optional[Dict]:
+        """Get a specific position by ID"""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM positions WHERE id = ?", (position_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    
     def get_open_positions(self) -> List[Dict]:
         """Get all open positions"""
         cursor = self.conn.cursor()
