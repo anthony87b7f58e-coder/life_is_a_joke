@@ -1,0 +1,261 @@
+"""
+Trading Bot Core
+Main bot class that coordinates all components
+"""
+
+import time
+import logging
+from typing import Optional
+from datetime import datetime
+
+from core.config import Config
+from core.database import Database
+from core.risk_manager import RiskManager
+from core.exchange_adapter import ExchangeAdapter
+from src.strategies.strategy_manager import StrategyManager
+from utils.notifications import init_notifier, get_notifier
+
+
+class TradingBot:
+    """Main trading bot class"""
+    
+    def __init__(self, config: Config):
+        """
+        Initialize trading bot
+        
+        Args:
+            config: Configuration object
+        """
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+        self.running = False
+        self.last_hourly_notification = None
+        
+        # Validate configuration
+        if not config.validate():
+            raise ValueError("Invalid configuration")
+        
+        # Initialize components
+        self.logger.info("Initializing trading bot components...")
+        
+        # Database
+        self.db = Database(config)
+        self.logger.info("Database initialized")
+        
+        # Exchange adapter (supports multiple exchanges via CCXT or Binance legacy)
+        try:
+            self.exchange = ExchangeAdapter(config)
+            # Test connection
+            self.exchange.ping()
+            
+            exchange_name = config.exchange_id if config.use_ccxt else 'Binance'
+            testnet_str = 'TESTNET' if config.exchange_testnet else 'PRODUCTION'
+            mode_str = 'CCXT' if config.use_ccxt else 'Legacy'
+            
+            self.logger.info(f"Connected to {exchange_name} {testnet_str} ({mode_str})")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize exchange: {e}")
+            raise
+        
+        # For backward compatibility, expose exchange as client
+        self.client = self.exchange
+        
+        # Risk manager
+        self.risk_manager = RiskManager(config, self.db)
+        self.logger.info("Risk manager initialized")
+        
+        # Strategy manager
+        self.strategy_manager = StrategyManager(config, self.exchange, self.db, self.risk_manager)
+        self.logger.info("Strategy manager initialized")
+        
+        # Initialize Telegram notifications
+        telegram_enabled = config.enable_notifications
+        if telegram_enabled:
+            telegram_token = config.telegram_bot_token
+            telegram_chat_id = config.telegram_chat_id
+            self.notifier = init_notifier(telegram_token, telegram_chat_id, telegram_enabled)
+            if self.notifier and self.notifier.enabled:
+                self.logger.info("Telegram notifications initialized")
+            else:
+                self.logger.warning("Telegram notifications not available")
+                self.notifier = None
+        else:
+            self.notifier = None
+            self.logger.info("Telegram notifications disabled")
+        
+        self.logger.info("Trading bot initialization complete")
+    
+    def start(self):
+        """Start the trading bot"""
+        self.logger.info("=" * 70)
+        self.logger.info("TRADING BOT STARTED")
+        self.logger.info("=" * 70)
+        exchange_name = self.config.exchange_id if self.config.use_ccxt else 'Binance'
+        self.logger.info(f"Exchange: {exchange_name}")
+        self.logger.info(f"Mode: {'CCXT' if self.config.use_ccxt else 'Legacy'}")
+        self.logger.info(f"Trading enabled: {self.config.trading_enabled}")
+        self.logger.info(f"Default symbol: {self.config.default_symbol}")
+        self.logger.info(f"Max open positions: {self.config.max_open_positions}")
+        self.logger.info(f"Max daily trades: {self.config.max_daily_trades}")
+        self.logger.info("=" * 70)
+        
+        # Send startup notification
+        if self.notifier:
+            self.notifier.notify_bot_started(
+                exchange=exchange_name,
+                trading_enabled=self.config.trading_enabled,
+                max_positions=self.config.max_open_positions,
+                max_daily_trades=self.config.max_daily_trades,
+                strategy=self.config.active_strategy
+            )
+        
+        self.running = True
+        
+        try:
+            # Get account info
+            account = self.exchange.get_account()
+            self.logger.info(f"Account status: Can trade: {account.get('canTrade', True)}")
+            
+            # Main loop
+            while self.running:
+                try:
+                    # Send hourly status update
+                    self._send_hourly_notification_if_needed()
+                    
+                    # Check risk limits
+                    if not self.risk_manager.check_daily_limits():
+                        self.logger.warning("Daily risk limits reached, skipping trading cycle")
+                        time.sleep(60)
+                        continue
+                    
+                    # Run strategy evaluation
+                    if self.config.trading_enabled:
+                        self.strategy_manager.evaluate_strategies()
+                    else:
+                        self.logger.debug("Trading disabled, running in monitoring mode only")
+                    
+                    # Health check
+                    if self.config.health_check_enabled:
+                        self._health_check()
+                    
+                    # Sleep before next cycle
+                    time.sleep(60)  # Check every minute
+                    
+                except KeyboardInterrupt:
+                    self.logger.info("Shutdown requested")
+                    break
+                except Exception as e:
+                    error_msg = str(e)
+                    self.logger.error(f"Error in main loop: {error_msg}", exc_info=True)
+                    # Send error notification
+                    if self.notifier:
+                        self.notifier.notify_error("Main Loop Error", error_msg)
+                    time.sleep(60)
+        
+        finally:
+            self.stop()
+    
+    def stop(self):
+        """Stop the trading bot"""
+        self.logger.info("Stopping trading bot...")
+        self.running = False
+        
+        # Send shutdown notification
+        if hasattr(self, 'notifier') and self.notifier:
+            self.notifier.notify_bot_stopped("Normal shutdown")
+        
+        # Close all positions if configured
+        if hasattr(self, 'strategy_manager'):
+            self.strategy_manager.close_all_positions()
+        
+        # Close database connection
+        if hasattr(self, 'db'):
+            self.db.close()
+        
+        self.logger.info("Trading bot stopped")
+    
+    def _send_hourly_notification_if_needed(self):
+        """Send hourly status notification if an hour has passed"""
+        if not self.notifier or not self.notifier.enabled:
+            return
+        
+        try:
+            current_time = datetime.now()
+            
+            # Check if an hour has passed since last notification
+            if self.last_hourly_notification is None or \
+               (current_time - self.last_hourly_notification).total_seconds() >= 3600:
+                
+                self.logger.info("Sending hourly status notification...")
+                
+                # Get open positions count
+                open_positions = self.db.get_open_positions()
+                open_positions_count = len(open_positions)
+                
+                # Get account balances
+                try:
+                    balance_data = {}
+                    account_balance = self.exchange.fetch_balance()
+                    
+                    # Extract balances from CCXT format
+                    if 'free' in account_balance:
+                        for currency, amount in account_balance['free'].items():
+                            if amount and float(amount) > 0:
+                                balance_data[currency] = amount
+                    elif 'balances' in account_balance:
+                        # Binance legacy format
+                        for balance in account_balance['balances']:
+                            free_amount = float(balance.get('free', 0))
+                            if free_amount > 0:
+                                balance_data[balance['asset']] = free_amount
+                    else:
+                        # Fallback: try direct balance dictionary
+                        for key, value in account_balance.items():
+                            if isinstance(value, (int, float, str)) and key not in ['info', 'timestamp', 'datetime']:
+                                try:
+                                    amount = float(value)
+                                    if amount > 0:
+                                        balance_data[key] = amount
+                                except (ValueError, TypeError):
+                                    pass
+                    
+                    # If no balances found, add USDT as 0
+                    if not balance_data:
+                        balance_data = {'USDT': 0}
+                    
+                except Exception as e:
+                    self.logger.error(f"Error fetching balances: {e}")
+                    balance_data = {'USDT': 0}
+                
+                # Get daily P/L
+                daily_pnl = self.db.get_daily_profit_loss()
+                
+                # Send notification
+                self.notifier.notify_hourly_summary(
+                    open_positions_count=open_positions_count,
+                    balance_data=balance_data,
+                    daily_pnl=daily_pnl
+                )
+                
+                # Update last notification time
+                self.last_hourly_notification = current_time
+                self.logger.info("Hourly status notification sent successfully")
+                
+        except Exception as e:
+            self.logger.error(f"Error sending hourly notification: {e}", exc_info=True)
+    
+    def _health_check(self):
+        """Perform internal health check"""
+        try:
+            # Check API connectivity
+            self.exchange.ping()
+            
+            # Check database
+            self.db.health_check()
+            
+            # Log status
+            open_positions = self.db.get_open_positions()
+            self.logger.debug(f"Health check OK - Open positions: {len(open_positions)}")
+            
+        except Exception as e:
+            self.logger.error(f"Health check failed: {str(e)}")
