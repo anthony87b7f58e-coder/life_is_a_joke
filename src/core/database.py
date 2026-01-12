@@ -81,9 +81,18 @@ class Database:
                 status TEXT DEFAULT 'open',
                 opened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 closed_at DATETIME,
+                exit_price REAL,
                 strategy TEXT
             )
         ''')
+        
+        # Add exit_price column if it doesn't exist (migration for existing databases)
+        try:
+            cursor.execute("ALTER TABLE positions ADD COLUMN exit_price REAL")
+            self.logger.info("Added exit_price column to positions table")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
         
         # Daily stats table
         cursor.execute('''
