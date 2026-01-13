@@ -616,7 +616,14 @@ class StrategyManager:
                                 quantity=quantity
                             )
                             order_id = order.get('orderId')
-                            exit_price = float(order.get('price', exit_price))
+                            # Handle case where price might be None or 'None' string
+                            order_price = order.get('price')
+                            if order_price and order_price != 'None':
+                                try:
+                                    exit_price = float(order_price)
+                                except (ValueError, TypeError):
+                                    # If conversion fails, keep the signal exit_price
+                                    pass
                             position_closed_on_exchange = True
                             
                             self.logger.info(f"Position closed: Order ID {order_id}, Exit price: {exit_price}")

@@ -94,6 +94,14 @@ class Database:
             # Column already exists
             pass
         
+        # Add pnl column if it doesn't exist (migration for existing databases)
+        try:
+            cursor.execute("ALTER TABLE positions ADD COLUMN pnl REAL")
+            self.logger.info("Added pnl column to positions table")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+        
         # Daily stats table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS daily_stats (
