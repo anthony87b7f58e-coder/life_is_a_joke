@@ -573,6 +573,10 @@ class StrategyManager:
             order_id = None
             position_closed_on_exchange = False
             
+            # Store original quantity for notifications and P&L calculation
+            # We need to use the original quantity to match what was opened
+            original_quantity = quantity
+            
             if self.config.trading_enabled:
                 try:
                     # Verify actual balance before closing to avoid InsufficientFunds errors
@@ -593,8 +597,10 @@ class StrategyManager:
                                 exit_price = exit_price or entry_price
                                 position_closed_on_exchange = False
                             elif actual_balance < quantity:
-                                self.logger.warning(f"Actual {base_asset} balance {actual_balance} < stored quantity {quantity}. Using actual balance.")
-                                quantity = actual_balance
+                                self.logger.warning(f"Actual {base_asset} balance {actual_balance} < stored quantity {quantity}. Using stored quantity for close order.")
+                                # Use the original quantity for the close order to match the open
+                                # The exchange will handle any rounding/dust issues
+                                pass
                         except Exception as balance_err:
                             self.logger.warning(f"Could not fetch balance, using stored quantity: {balance_err}")
                     
@@ -649,13 +655,13 @@ class StrategyManager:
             else:
                 self.logger.warning("Trading disabled - simulating position close")
             
-            # Calculate P&L
+            # Calculate P&L using ORIGINAL quantity to match what was opened
             if side == 'BUY':
-                pnl = (exit_price - entry_price) * quantity
+                pnl = (exit_price - entry_price) * original_quantity
             else:
-                pnl = (entry_price - exit_price) * quantity
+                pnl = (entry_price - exit_price) * original_quantity
             
-            pnl_percent = (pnl / (entry_price * quantity) * 100) if (entry_price * quantity) > 0 else 0
+            pnl_percent = (pnl / (entry_price * original_quantity) * 100) if (entry_price * original_quantity) > 0 else 0
             
             # Update position status
             self.db.update_position(
@@ -671,14 +677,16 @@ class StrategyManager:
             # Get current open positions count for notification
             open_positions_count = len(self.db.get_open_positions())
             
-            # Send Telegram notification with score and open positions count - isolated in try-except
+            # Send Telegram notification with score and open positions count
+            # Use ORIGINAL quantity to match what was opened
             try:
                 notifier = get_notifier()
                 if notifier:
-                    notifier.notify_position_closed(
+                    self.logger.info(f"Sending position closed notification for {symbol}...")
+                    success = notifier.notify_position_closed(
                         symbol=symbol,
                         side=side,
-                        quantity=quantity,
+                        quantity=original_quantity,
                         entry_price=entry_price,
                         exit_price=exit_price,
                         pnl=pnl,
@@ -687,6 +695,12 @@ class StrategyManager:
                         score=score,
                         open_positions_count=open_positions_count
                     )
+                    if success:
+                        self.logger.info(f"Position closed notification sent successfully")
+                    else:
+                        self.logger.warning(f"Position closed notification returned False")
+                else:
+                    self.logger.warning(f"Notifier is None, cannot send position closed notification")
             except Exception as notif_error:
                 self.logger.error(f"Failed to send position closed notification: {notif_error}", exc_info=True)
         except Exception as e:
