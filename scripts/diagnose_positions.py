@@ -8,21 +8,24 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
-from dotenv import load_dotenv
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load environment variables from .env file
-env_file = os.environ.get('CONFIG_DIR', '/etc/trading-bot') + '/.env'
-if not os.path.exists(env_file):
-    env_file = str(Path(__file__).parent.parent / '.env')
-
-if os.path.exists(env_file):
-    load_dotenv(env_file)
-    print(f"📁 Loaded environment from: {env_file}")
-else:
-    print(f"⚠️  Warning: No .env file found, using default values")
+try:
+    from dotenv import load_dotenv
+    env_file = os.environ.get('CONFIG_DIR', '/etc/trading-bot') + '/.env'
+    if not os.path.exists(env_file):
+        env_file = str(Path(__file__).parent.parent / '.env')
+    
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
+        print(f"📁 Loaded environment from: {env_file}")
+    else:
+        print(f"⚠️  Warning: No .env file found, using default values")
+except ImportError:
+    print(f"⚠️  Warning: python-dotenv not installed, using environment variables only")
 print()
 
 from src.core.config import Config
