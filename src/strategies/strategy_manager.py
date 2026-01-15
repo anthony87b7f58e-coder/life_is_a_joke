@@ -568,6 +568,24 @@ class StrategyManager:
             quantity = position.get('quantity', 0)
             side = position.get('side', 'BUY')
             symbol = position.get('symbol', '')
+            reason = signal.get('reason', '')
+            
+            # Calculate potential P&L before closing
+            if side == 'BUY':
+                potential_pnl = (exit_price - entry_price) * quantity
+            else:
+                potential_pnl = (entry_price - exit_price) * quantity
+            
+            # Check if this is a stop-loss or take-profit trigger
+            is_stop_loss = 'stop loss' in reason.lower() or 'sl' in reason.lower()
+            is_take_profit = 'take profit' in reason.lower() or 'tp' in reason.lower()
+            
+            # Avoid closing positions at a loss unless it's stop-loss or necessary
+            if potential_pnl < 0 and not is_stop_loss:
+                self.logger.info(f"Skipping close of {symbol} position {position_id} - would result in loss of ${potential_pnl:.2f}. Reason: {reason}")
+                return
+            
+            self.logger.info(f"Closing {symbol} position {position_id} with potential P&L: ${potential_pnl:.2f}")
             
             # Close position on exchange
             order_id = None

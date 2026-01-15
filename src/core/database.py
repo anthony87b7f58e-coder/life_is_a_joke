@@ -200,12 +200,13 @@ class Database:
         return cursor.fetchone()[0]
     
     def get_daily_profit_loss(self) -> float:
-        """Get total P/L for today"""
+        """Get total P/L for today from closed positions"""
         cursor = self.conn.cursor()
         cursor.execute('''
-            SELECT COALESCE(SUM(profit_loss), 0) as total
-            FROM trades 
-            WHERE DATE(timestamp) = DATE('now')
+            SELECT COALESCE(SUM(pnl), 0) as total
+            FROM positions 
+            WHERE status = 'closed'
+            AND DATE(closed_at) = DATE('now')
         ''')
         return cursor.fetchone()[0]
     
