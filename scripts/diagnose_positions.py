@@ -20,10 +20,18 @@ try:
         env_file = str(Path(__file__).parent.parent / '.env')
     
     if os.path.exists(env_file):
-        load_dotenv(env_file)
+        # Load with override=True to ensure .env values take precedence
+        load_dotenv(env_file, override=True)
         print(f"📁 Loaded environment from: {env_file}")
+        # Verify key variables were loaded
+        if os.getenv('MAX_OPEN_POSITIONS'):
+            print(f"   MAX_OPEN_POSITIONS from .env: {os.getenv('MAX_OPEN_POSITIONS')}")
+        if os.getenv('MAX_DAILY_TRADES'):
+            print(f"   MAX_DAILY_TRADES from .env: {os.getenv('MAX_DAILY_TRADES')}")
     else:
-        print(f"⚠️  Warning: No .env file found, using default values")
+        print(f"⚠️  Warning: No .env file found at {env_file}")
+        print(f"   Checked: {env_file}")
+        print(f"   Using default values")
 except ImportError:
     print(f"⚠️  Warning: python-dotenv not installed, using environment variables only")
 print()
