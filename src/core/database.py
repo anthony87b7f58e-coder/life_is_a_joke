@@ -163,8 +163,12 @@ class Database:
         values = []
         
         for key, value in kwargs.items():
-            updates.append(f"{key} = ?")
-            values.append(value)
+            # Handle CURRENT_TIMESTAMP as SQL function, not string
+            if value == 'CURRENT_TIMESTAMP':
+                updates.append(f"{key} = CURRENT_TIMESTAMP")
+            else:
+                updates.append(f"{key} = ?")
+                values.append(value)
         
         values.append(position_id)
         
@@ -206,7 +210,8 @@ class Database:
             SELECT COALESCE(SUM(pnl), 0) as total
             FROM positions 
             WHERE status = 'closed'
-            AND DATE(closed_at) = DATE('now')
+            AND DATE(closed_at) = DATE('now', 'localtime')
+            AND pnl IS NOT NULL
         ''')
         return cursor.fetchone()[0]
     
