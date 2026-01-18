@@ -238,6 +238,15 @@ class TelegramNotifier:
             score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
             positions_text = f"\n📋 Open Positions: <b>{open_positions_count}</b>" if open_positions_count is not None else ""
             
+            # Format P&L with adaptive decimal places for small values
+            # Use more decimals for values < $0.01 to show actual loss/profit
+            if abs(pnl) < 0.01:
+                pnl_str = f"${pnl:+.6f}".rstrip('0').rstrip('.')
+            elif abs(pnl) < 1:
+                pnl_str = f"${pnl:+.4f}".rstrip('0').rstrip('.')
+            else:
+                pnl_str = f"${pnl:+,.2f}"
+            
             message = f"""
 {emoji} <b>Position Closed</b>
 
@@ -247,7 +256,7 @@ class TelegramNotifier:
 📥 Entry: <code>${entry_price:,.2f}</code>
 📤 Exit: <code>${exit_price:,.2f}</code>
 
-{pnl_emoji} P&L: <b>${pnl:,.2f}</b> ({pnl_percent:+.2f}%)
+{pnl_emoji} P&L: <b>{pnl_str}</b> ({pnl_percent:+.2f}%)
 🎯 Strategy: <i>{strategy}</i>{score_text}{positions_text}
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
