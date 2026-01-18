@@ -64,6 +64,11 @@ class Config:
         self.max_daily_loss_percentage = float(os.getenv('MAX_DAILY_LOSS_PERCENTAGE', '5.0'))
         self.position_size_percentage = float(os.getenv('POSITION_SIZE_PERCENTAGE', '2.0'))
         
+        # Confidence-based position sizing
+        self.use_confidence_sizing = os.getenv('USE_CONFIDENCE_SIZING', 'true').lower() == 'true'
+        self.min_position_size_pct = float(os.getenv('MIN_POSITION_SIZE_PCT', '0.5'))  # % of balance
+        self.max_position_size_pct = float(os.getenv('MAX_POSITION_SIZE_PCT', '5.0'))  # % of balance
+        
         # Notifications
         self.enable_notifications = os.getenv('ENABLE_NOTIFICATIONS', 'false').lower() == 'true'
         self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')

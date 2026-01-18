@@ -8,6 +8,7 @@ from typing import List, Dict
 from src.strategies.base_strategy import BaseStrategy
 from src.strategies.simple_trend import SimpleTrendStrategy
 from src.strategies.enhanced_multi_indicator import EnhancedMultiIndicatorStrategy
+from src.core.confidence_position_sizer import ConfidencePositionSizer
 from utils.notifications import get_notifier
 
 
@@ -29,6 +30,15 @@ class StrategyManager:
         self.db = database
         self.risk_manager = risk_manager
         self.logger = logging.getLogger(__name__)
+        
+        # Initialize confidence-based position sizer if enabled
+        self.use_confidence_sizing = getattr(config, 'use_confidence_sizing', True)
+        if self.use_confidence_sizing:
+            self.position_sizer = ConfidencePositionSizer(config)
+            self.logger.info("Confidence-based position sizing ENABLED")
+        else:
+            self.position_sizer = None
+            self.logger.info("Confidence-based position sizing DISABLED - using fixed sizing")
         
         # Initialize strategies
         self.strategies: List[BaseStrategy] = []
@@ -131,7 +141,8 @@ class StrategyManager:
             # ============================================================================
             # Get signal details
             # ============================================================================
-            score = signal.get('confidence')  # Get signal score
+            confidence_score = signal.get('confidence', 70)  # Get signal confidence score
+            self.logger.info(f"Signal confidence score: {confidence_score}/100")
             
             # Get account balance
             usdt_balance = 0
@@ -187,10 +198,38 @@ class StrategyManager:
                 self.logger.warning(f"Failed to fetch balance: {e}. Using default position size.")
                 usdt_balance = 0
             
-            # Calculate position size
+            # ============================================================================
+            # Calculate position size with confidence-based sizing
+            # ============================================================================
             if usdt_balance > 0:
-                quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
-                self.logger.info(f"Calculated position size based on balance: {quantity}")
+                # Check if confidence-based sizing is enabled
+                if self.use_confidence_sizing and self.position_sizer:
+                    # Use confidence-based position sizing
+                    
+                    # Calculate volatility indicator (simplified - can be enhanced)
+                    # TODO: Implement proper volatility calculation from recent price data
+                    volatility = None  # Will use default behavior
+                    
+                    # Calculate trend strength (simplified - can be enhanced)
+                    # TODO: Implement proper trend strength calculation
+                    trend_strength = None  # Will use default behavior
+                    
+                    quantity, position_size_usdt = self.position_sizer.calculate_position_size(
+                        balance=usdt_balance,
+                        price=price,
+                        confidence_score=confidence_score,
+                        trend_strength=trend_strength,
+                        volatility=volatility
+                    )
+                    
+                    self.logger.info(
+                        f"📊 Confidence-based sizing: score={confidence_score:.1f}/100, "
+                        f"quantity={quantity:.8f}, size=${position_size_usdt:.2f}"
+                    )
+                else:
+                    # Use traditional fixed percentage sizing
+                    quantity = self.risk_manager.calculate_position_size(symbol, price, usdt_balance)
+                    self.logger.info(f"Calculated position size based on balance (fixed %): {quantity}")
             else:
                 # Fallback to configured max position size if balance unavailable
                 quantity = self.config.max_position_size
