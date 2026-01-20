@@ -341,7 +341,8 @@ class StrategyManager:
             try:
                 notifier = get_notifier()
                 if notifier:
-                    notifier.notify_position_opened(
+                    self.logger.info(f"Sending position opened notification for {symbol}...")
+                    success = notifier.notify_position_opened(
                         symbol=symbol,
                         side='BUY',
                         quantity=quantity,
@@ -350,6 +351,12 @@ class StrategyManager:
                         score=score,
                         open_positions_count=open_positions_count
                     )
+                    if success:
+                        self.logger.info(f"Position opened notification sent successfully")
+                    else:
+                        self.logger.warning(f"Position opened notification returned False")
+                else:
+                    self.logger.warning(f"Notifier is None, cannot send position opened notification")
             except Exception as notif_error:
                 self.logger.error(f"Failed to send position opened notification: {notif_error}", exc_info=True)
             
@@ -564,7 +571,8 @@ class StrategyManager:
             try:
                 notifier = get_notifier()
                 if notifier:
-                    notifier.notify_position_opened(
+                    self.logger.info(f"Sending position opened notification for {symbol}...")
+                    success = notifier.notify_position_opened(
                         symbol=symbol,
                         side='SELL',
                         quantity=quantity,
@@ -573,6 +581,12 @@ class StrategyManager:
                         score=score,
                         open_positions_count=open_positions_count
                     )
+                    if success:
+                        self.logger.info(f"Position opened notification sent successfully")
+                    else:
+                        self.logger.warning(f"Position opened notification returned False")
+                else:
+                    self.logger.warning(f"Notifier is None, cannot send position opened notification")
             except Exception as notif_error:
                 self.logger.error(f"Failed to send position opened notification: {notif_error}", exc_info=True)
             
