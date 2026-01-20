@@ -146,6 +146,18 @@ class TelegramNotifier:
             score_text = f"\n⭐ Signal Score: <b>{score}/100</b>" if score is not None else ""
             positions_text = f"\n📋 Open Positions: <b>{open_positions_count}</b>" if open_positions_count is not None else ""
             
+            # Generate AI commentary
+            ai_commentary = ""
+            try:
+                from src.ml.ai_commentary import get_commentary_generator
+                commentary_gen = get_commentary_generator(self.logger)
+                confidence_normalized = score / 100 if score is not None else None
+                ai_commentary = commentary_gen.generate_position_open_commentary(
+                    symbol, side, confidence_normalized
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not generate AI commentary: {e}")
+            
             message = f"""
 {emoji} <b>Position Opened</b>
 
@@ -153,7 +165,7 @@ class TelegramNotifier:
 📈 Side: <b>{side.upper()}</b>
 💰 Quantity: <code>{quantity}</code>
 💵 Price: <code>${price:,.2f}</code>
-🎯 Strategy: <i>{strategy}</i>{score_text}{positions_text}
+🎯 Strategy: <i>{strategy}</i>{score_text}{positions_text}{ai_commentary}
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
@@ -247,6 +259,17 @@ class TelegramNotifier:
             else:
                 pnl_str = f"${pnl:+,.2f}"
             
+            # Generate AI commentary
+            ai_commentary = ""
+            try:
+                from src.ml.ai_commentary import get_commentary_generator
+                commentary_gen = get_commentary_generator(self.logger)
+                ai_commentary = commentary_gen.generate_position_close_commentary(
+                    symbol, side, pnl, pnl_percent
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not generate AI commentary: {e}")
+            
             message = f"""
 {emoji} <b>Position Closed</b>
 
@@ -257,7 +280,7 @@ class TelegramNotifier:
 📤 Exit: <code>${exit_price:,.2f}</code>
 
 {pnl_emoji} P&L: <b>{pnl_str}</b> ({pnl_percent:+.2f}%)
-🎯 Strategy: <i>{strategy}</i>{score_text}{positions_text}
+🎯 Strategy: <i>{strategy}</i>{score_text}{positions_text}{ai_commentary}
 
 ⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
@@ -549,6 +572,17 @@ class TelegramNotifier:
             # Build message
             balance_text = "\n".join(balance_lines)
             
+            # Generate AI daily commentary
+            ai_commentary = ""
+            try:
+                from src.ml.ai_commentary import get_commentary_generator
+                commentary_gen = get_commentary_generator(self.logger)
+                ai_commentary = commentary_gen.generate_daily_summary_commentary(
+                    daily_pnl, open_positions_count
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not generate AI commentary: {e}")
+            
             message = f"""
 📊 <b>Hourly Status Summary</b>
 
@@ -570,6 +604,10 @@ class TelegramNotifier:
                 total_emoji = "💰" if total_pnl > 0 else "💸" if total_pnl < 0 else "➖"
                 total_sign = "+" if total_pnl > 0 else ""
                 message += f"{total_emoji} <b>Total P&amp;L:</b> <code>{total_sign}${total_pnl:,.2f}</code>\n"
+            
+            # Add AI commentary if available
+            if ai_commentary:
+                message += ai_commentary + "\n"
             
             message += f"\n⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             
