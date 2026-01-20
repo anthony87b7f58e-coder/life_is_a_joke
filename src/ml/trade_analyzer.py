@@ -159,7 +159,7 @@ class TradeAnalyzer:
     def find_common_patterns_in_profitable_trades(self, min_pnl: float = 0) -> Dict:
         """Identify common characteristics in profitable trades"""
         positions = self.get_all_closed_positions()
-        profitable = [p for p in positions if p['pnl'] > min_pnl]
+        profitable = [p for p in positions if p['pnl'] and p['pnl'] > min_pnl]
         
         if not profitable:
             return {}
@@ -168,10 +168,23 @@ class TradeAnalyzer:
         holding_times = []
         for p in profitable:
             if p['opened_at'] and p['closed_at']:
-                opened = datetime.fromisoformat(p['opened_at'])
-                closed = datetime.fromisoformat(p['closed_at'])
-                holding_time = (closed - opened).total_seconds() / 3600  # hours
-                holding_times.append(holding_time)
+                try:
+                    # Handle different datetime formats
+                    opened_str = str(p['opened_at']).strip()
+                    closed_str = str(p['closed_at']).strip()
+                    
+                    # Skip if empty or None
+                    if not opened_str or opened_str.lower() == 'none' or not closed_str or closed_str.lower() == 'none':
+                        continue
+                    
+                    opened = datetime.fromisoformat(opened_str.replace(' ', 'T'))
+                    closed = datetime.fromisoformat(closed_str.replace(' ', 'T'))
+                    holding_time = (closed - opened).total_seconds() / 3600  # hours
+                    holding_times.append(holding_time)
+                except (ValueError, AttributeError) as e:
+                    # Skip positions with invalid datetime formats
+                    self.logger.debug(f"Could not parse datetime for position {p.get('id', 'unknown')}: {e}")
+                    continue
         
         avg_holding_time = sum(holding_times) / len(holding_times) if holding_times else 0
         
