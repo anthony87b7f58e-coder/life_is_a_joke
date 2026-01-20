@@ -68,6 +68,15 @@ class TradingBot:
         self.strategy_manager = StrategyManager(config, self.exchange, self.db, self.risk_manager)
         self.logger.info("Strategy manager initialized")
         
+        # Adaptive tactics manager (AI-powered automatic adjustments)
+        try:
+            from src.ml import AdaptiveTacticsManager
+            self.adaptive_tactics = AdaptiveTacticsManager(config, self.db, self.logger)
+            self.logger.info("Adaptive tactics manager initialized")
+        except Exception as e:
+            self.logger.warning(f"Adaptive tactics not available: {e}")
+            self.adaptive_tactics = None
+        
         # Initialize Telegram notifications
         telegram_enabled = config.enable_notifications
         if telegram_enabled:
@@ -229,6 +238,24 @@ class TradingBot:
                 
                 # Get daily P/L
                 daily_pnl = self.db.get_daily_profit_loss()
+                
+                # Run adaptive tactics analysis (hourly)
+                if self.adaptive_tactics:
+                    try:
+                        self.logger.info("Running adaptive tactics analysis...")
+                        adjustments = self.adaptive_tactics.analyze_and_adjust()
+                        
+                        if adjustments.get('adjustments'):
+                            # Log adjustments
+                            self.logger.info("🤖 Adaptive tactics made adjustments:")
+                            for adj in adjustments['adjustments']:
+                                self.logger.info(f"   {adj}")
+                            
+                            # Update strategy manager with tactical overrides
+                            self.strategy_manager.set_tactical_overrides(self.adaptive_tactics)
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error in adaptive tactics: {e}", exc_info=True)
                 
                 # Send notification
                 self.notifier.notify_hourly_summary(

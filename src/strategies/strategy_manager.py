@@ -44,6 +44,9 @@ class StrategyManager:
         self.strategies: List[BaseStrategy] = []
         self._load_strategies()
         
+        # Adaptive tactics manager (set by bot after initialization)
+        self.adaptive_tactics = None
+        
         self.logger.info(f"Strategy manager initialized with {len(self.strategies)} strategies")
     
     def _load_strategies(self):
@@ -137,6 +140,17 @@ class StrategyManager:
                 return
             
             self.logger.debug(f"✅ Risk limits OK for BUY {symbol}")
+            
+            # ============================================================================
+            # CHECK ADAPTIVE TACTICS - Apply AI-powered trading adjustments
+            # ============================================================================
+            should_trade, adj_confidence, reason = self._check_adaptive_tactics(symbol, signal)
+            
+            if not should_trade:
+                self.logger.warning(f"🤖 Adaptive Tactics BLOCKED BUY {symbol}: {reason}")
+                return
+            
+            self.logger.info(f"🤖 Adaptive Tactics approved BUY {symbol}: {reason}")
             
             # ============================================================================
             # Get signal details
@@ -243,6 +257,26 @@ class StrategyManager:
                     quantity = min_order_size
             except Exception as e:
                 self.logger.warning(f"Could not check minimum order size: {e}")
+            
+            # ============================================================================
+            # APPLY ADAPTIVE TACTICS POSITION SIZE ADJUSTMENT
+            # ============================================================================
+            # Calculate position value for adjustment
+            position_value = quantity * price
+            adjusted_value = self._apply_position_size_adjustment(position_value)
+            
+            # Recalculate quantity based on adjusted value
+            if adjusted_value != position_value:
+                quantity = adjusted_value / price
+                self.logger.info(f"Adjusted quantity: {quantity:.8f} {symbol}")
+                
+                # Re-check minimum order size
+                try:
+                    if quantity < min_order_size:
+                        self.logger.warning(f"Adjusted quantity {quantity} below minimum {min_order_size}, using minimum")
+                        quantity = min_order_size
+                except:
+                    pass
             
             # Validate trade
             trade_data = {
@@ -396,6 +430,17 @@ class StrategyManager:
                 return
             
             self.logger.debug(f"✅ Risk limits OK for SELL {symbol}")
+            
+            # ============================================================================
+            # CHECK ADAPTIVE TACTICS - Apply AI-powered trading adjustments
+            # ============================================================================
+            should_trade, adj_confidence, reason = self._check_adaptive_tactics(symbol, signal)
+            
+            if not should_trade:
+                self.logger.warning(f"🤖 Adaptive Tactics BLOCKED SELL {symbol}: {reason}")
+                return
+            
+            self.logger.info(f"🤖 Adaptive Tactics approved SELL {symbol}: {reason}")
             
             # ============================================================================
             # Get signal details
@@ -776,6 +821,54 @@ class StrategyManager:
                 self.logger.error(f"Failed to send position closed notification: {notif_error}", exc_info=True)
         except Exception as e:
             self.logger.error(f"Error closing position {position_id}: {str(e)}", exc_info=True)
+    
+    def set_tactical_overrides(self, adaptive_tactics):
+        """Set adaptive tactics manager for automatic adjustments"""
+        self.adaptive_tactics = adaptive_tactics
+        self.logger.info("Adaptive tactics manager connected to strategy manager")
+    
+    def _check_adaptive_tactics(self, symbol: str, signal: Dict) -> tuple:
+        """
+        Check adaptive tactics and apply adjustments
+        
+        Returns:
+            (should_trade: bool, adjusted_confidence: float, reason: str)
+        """
+        if not self.adaptive_tactics:
+            return (True, signal.get('confidence', 0.5) * 100, "No adaptive tactics")
+        
+        # Check if symbol is paused
+        if not self.adaptive_tactics.should_trade_symbol(symbol):
+            return (False, 0, f"{symbol} trading paused due to poor performance")
+        
+        # Check confidence threshold
+        signal_confidence = (signal.get('confidence', 0.5) * 100)  # Convert to percentage
+        min_confidence = self.adaptive_tactics.get_min_confidence()
+        
+        if signal_confidence < min_confidence:
+            return (False, signal_confidence, f"Signal confidence {signal_confidence:.0f}% below threshold {min_confidence:.0f}%")
+        
+        # Check max positions
+        max_positions = self.adaptive_tactics.get_max_positions()
+        current_positions = len(self.db.get_open_positions())
+        
+        if current_positions >= max_positions:
+            return (False, signal_confidence, f"Max positions reached ({current_positions}/{max_positions})")
+        
+        return (True, signal_confidence, "Adaptive tactics approved")
+    
+    def _apply_position_size_adjustment(self, base_size: float) -> float:
+        """Apply adaptive tactics position size multiplier"""
+        if not self.adaptive_tactics:
+            return base_size
+        
+        adjusted_size = self.adaptive_tactics.get_adjusted_position_size(base_size)
+        
+        if adjusted_size != base_size:
+            multiplier = self.adaptive_tactics.tactical_overrides.get('position_size_multiplier', 1.0)
+            self.logger.info(f"🤖 Adaptive tactics: Adjusting position size by {multiplier}x (${base_size:.2f} → ${adjusted_size:.2f})")
+        
+        return adjusted_size
     
     def close_all_positions(self):
         """Close all open positions"""
