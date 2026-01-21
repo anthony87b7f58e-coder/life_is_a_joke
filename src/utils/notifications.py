@@ -523,7 +523,8 @@ class TelegramNotifier:
     def notify_hourly_summary(self, open_positions_count: int, 
                              balance_data: Dict[str, float],
                              daily_pnl: float,
-                             total_pnl: float = None) -> bool:
+                             total_pnl: float = None,
+                             ai_tactics: Dict[str, Any] = None) -> bool:
         """
         Send hourly status summary
         
@@ -532,6 +533,7 @@ class TelegramNotifier:
             balance_data: Dictionary of currency balances (e.g., {'USDT': 1000, 'BTC': 0.5})
             daily_pnl: Daily profit/loss in USDT
             total_pnl: Total profit/loss (optional)
+            ai_tactics: Current AI adaptive tactics settings (optional)
             
         Returns:
             True if sent successfully
@@ -614,6 +616,29 @@ class TelegramNotifier:
             # Add AI commentary if available
             if ai_commentary:
                 message += ai_commentary + "\n"
+            
+            # Add AI Adaptive Tactics section if available
+            if ai_tactics:
+                try:
+                    position_mult = ai_tactics.get('position_size_multiplier', 1.0)
+                    confidence_threshold = ai_tactics.get('confidence_threshold', 0.5) * 100  # Convert to percentage
+                    max_pos = ai_tactics.get('max_positions', 'N/A')
+                    blocked = ai_tactics.get('blocked_symbols', [])
+                    
+                    message += "\n🤖 <b>AI Adaptive Strategy:</b>\n"
+                    message += f"  📊 Position Size: <b>{position_mult:.0%}</b>\n"
+                    message += f"  🎯 Min Confidence: <b>{confidence_threshold:.0f}%</b>\n"
+                    message += f"  📋 Max Positions: <b>{max_pos}</b>\n"
+                    
+                    if blocked:
+                        blocked_str = ", ".join(blocked[:3])  # Show first 3
+                        if len(blocked) > 3:
+                            blocked_str += f" +{len(blocked)-3} more"
+                        message += f"  ⛔ Blocked Pairs: <code>{blocked_str}</code>\n"
+                    else:
+                        message += "  ✅ All pairs active\n"
+                except Exception as e:
+                    self.logger.error(f"Error formatting AI tactics: {e}")
             
             message += f"\n⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             

@@ -240,6 +240,7 @@ class TradingBot:
                 daily_pnl = self.db.get_daily_profit_loss()
                 
                 # Run adaptive tactics analysis (hourly)
+                ai_tactics = None
                 if self.adaptive_tactics:
                     try:
                         self.logger.info("Running adaptive tactics analysis...")
@@ -254,14 +255,18 @@ class TradingBot:
                             # Update strategy manager with tactical overrides
                             self.strategy_manager.set_tactical_overrides(self.adaptive_tactics)
                         
+                        # Get current tactics for notification
+                        ai_tactics = self.adaptive_tactics.get_current_tactics()
+                        
                     except Exception as e:
                         self.logger.error(f"Error in adaptive tactics: {e}", exc_info=True)
                 
-                # Send notification
+                # Send notification with AI tactics info
                 self.notifier.notify_hourly_summary(
                     open_positions_count=open_positions_count,
                     balance_data=balance_data,
-                    daily_pnl=daily_pnl
+                    daily_pnl=daily_pnl,
+                    ai_tactics=ai_tactics
                 )
                 
                 # Update last notification time
