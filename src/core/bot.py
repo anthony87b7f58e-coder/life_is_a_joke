@@ -60,8 +60,8 @@ class TradingBot:
         # For backward compatibility, expose exchange as client
         self.client = self.exchange
         
-        # Risk manager
-        self.risk_manager = RiskManager(config, self.db)
+        # Risk manager (pass exchange for balance queries)
+        self.risk_manager = RiskManager(config, self.db, self.exchange)
         self.logger.info("Risk manager initialized")
         
         # Strategy manager

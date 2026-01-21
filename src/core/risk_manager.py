@@ -10,16 +10,18 @@ from typing import Dict, Optional
 class RiskManager:
     """Risk management for trading bot"""
     
-    def __init__(self, config, database):
+    def __init__(self, config, database, exchange=None):
         """
         Initialize risk manager
         
         Args:
             config: Configuration object
             database: Database instance
+            exchange: Exchange adapter instance (optional, for balance queries)
         """
         self.config = config
         self.db = database
+        self.exchange = exchange
         self.logger = logging.getLogger(__name__)
         
         self.logger.info(f"Risk Manager initialized - Max daily trades: {config.max_daily_trades}, "
@@ -38,13 +40,50 @@ class RiskManager:
             self.logger.warning(f"Daily trade limit reached: {daily_trades}/{self.config.max_daily_trades}")
             return False
         
-        # Check daily loss limit
-        daily_pl = self.db.get_daily_profit_loss()
-        max_loss = -self.config.max_daily_loss_percentage
+        # Check daily loss limit based on starting USDT balance
+        daily_pl = self.db.get_daily_profit_loss()  # Absolute P&L in USDT
         
-        if daily_pl < max_loss:
-            self.logger.warning(f"Daily loss limit reached: {daily_pl}% (max: {max_loss}%)")
-            return False
+        # Only check if we have losses
+        if daily_pl < 0:
+            try:
+                # Get current USDT balance
+                current_usdt_balance = 0
+                if self.exchange:
+                    balance_data = self.exchange.fetch_balance()
+                    # Extract USDT balance from various exchange formats
+                    if 'USDT' in balance_data.get('free', {}):
+                        current_usdt_balance = float(balance_data['free']['USDT'])
+                    elif 'USDT' in balance_data.get('total', {}):
+                        current_usdt_balance = float(balance_data['total']['USDT'])
+                    else:
+                        # Try to find USDT in other formats
+                        for key in ['free', 'total', 'balances']:
+                            if key in balance_data:
+                                if isinstance(balance_data[key], dict) and 'USDT' in balance_data[key]:
+                                    current_usdt_balance = float(balance_data[key]['USDT'])
+                                    break
+                
+                # Calculate starting balance (current balance + losses already taken)
+                starting_balance = current_usdt_balance - daily_pl  # daily_pl is negative, so this adds back the loss
+                
+                if starting_balance > 0:
+                    # Calculate loss percentage based on starting balance
+                    loss_percentage = (daily_pl / starting_balance) * 100.0
+                    max_loss_percentage = -self.config.max_daily_loss_percentage
+                    
+                    if loss_percentage < max_loss_percentage:
+                        self.logger.warning(
+                            f"Daily loss limit reached: {loss_percentage:.2f}% of starting balance "
+                            f"({abs(daily_pl):.2f} USDT loss from {starting_balance:.2f} USDT) "
+                            f"(max: {max_loss_percentage}%)"
+                        )
+                        return False
+                else:
+                    self.logger.warning(f"Cannot calculate daily loss percentage: starting balance is {starting_balance}")
+            
+            except Exception as e:
+                self.logger.error(f"Error checking daily loss limit: {e}", exc_info=True)
+                # If we can't check properly, allow trading but log the issue
         
         return True
     
