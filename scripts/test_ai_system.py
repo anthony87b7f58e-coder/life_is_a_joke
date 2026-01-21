@@ -157,7 +157,7 @@ def test_adaptive_tactics():
     try:
         config = Config()
         database = Database(config.db_path)
-        tactics = AdaptiveTacticsManager(database, logger=None)
+        tactics = AdaptiveTacticsManager(config, database, logger=None)
         print_test("AdaptiveTacticsManager initialization", True)
     except Exception as e:
         print_test("AdaptiveTacticsManager initialization", False, f"Error: {e}")
