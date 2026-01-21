@@ -39,7 +39,7 @@ def test_ml_analyzers():
     print_header("TESTING ML ANALYZERS")
     
     config = Config()
-    db_path = config.database_path
+    db_path = config.db_path
     
     # Test TradeAnalyzer
     try:
@@ -156,7 +156,7 @@ def test_adaptive_tactics():
     
     try:
         config = Config()
-        database = Database(config.database_path)
+        database = Database(config.db_path)
         tactics = AdaptiveTacticsManager(database, logger=None)
         print_test("AdaptiveTacticsManager initialization", True)
     except Exception as e:
@@ -208,7 +208,7 @@ def test_integration():
     # Test database connection
     try:
         config = Config()
-        db = Database(config.database_path)
+        db = Database(config.db_path)
         cursor = db.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM positions")
         count = cursor.fetchone()[0]
