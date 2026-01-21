@@ -28,6 +28,7 @@ class AdaptiveTacticsManager:
             'position_size_multiplier': 1.0,  # Multiplier for position sizes
             'min_confidence_threshold': 50.0,  # Min confidence to trade
             'paused_symbols': set(),  # Symbols to avoid trading
+            'paused_since': {},  # Timestamp when each symbol was paused
             'max_positions_override': None,  # Override for max positions
         }
         
@@ -39,6 +40,9 @@ class AdaptiveTacticsManager:
         self.logger.info("🤖 Analyzing performance for tactical adjustments...")
         
         adjustments_made = []
+        
+        # Auto-unblock symbols that have been paused for too long
+        adjustments_made.extend(self._auto_unblock_old_paused_symbols())
         
         try:
             # Get recent performance (7 days and 30 days)
@@ -79,6 +83,44 @@ class AdaptiveTacticsManager:
         except Exception as e:
             self.logger.error(f"Error in adaptive tactics analysis: {e}", exc_info=True)
             return {'error': str(e)}
+    
+    def _auto_unblock_old_paused_symbols(self) -> List[str]:
+        """
+        Automatically unblock symbols that have been paused for too long
+        This prevents the deadlock where paused symbols can never recover
+        """
+        adjustments = []
+        
+        try:
+            from datetime import datetime, timedelta
+            
+            # Auto-unblock symbols paused for more than 7 days
+            AUTO_UNBLOCK_DAYS = 7
+            cutoff_time = datetime.now() - timedelta(days=AUTO_UNBLOCK_DAYS)
+            
+            symbols_to_unblock = []
+            for symbol in list(self.tactical_overrides['paused_symbols']):
+                paused_since = self.tactical_overrides['paused_since'].get(symbol)
+                
+                if paused_since is None:
+                    # Symbol was paused before we started tracking time, unblock it
+                    symbols_to_unblock.append(symbol)
+                    adjustments.append(f"🔄 Auto-unblocking {symbol} - No pause timestamp (legacy pause)")
+                elif paused_since < cutoff_time:
+                    # Symbol has been paused for too long, give it another chance
+                    symbols_to_unblock.append(symbol)
+                    days_paused = (datetime.now() - paused_since).days
+                    adjustments.append(f"🔄 Auto-unblocking {symbol} - Paused for {days_paused} days (trial period)")
+            
+            # Actually unblock the symbols
+            for symbol in symbols_to_unblock:
+                self.tactical_overrides['paused_symbols'].discard(symbol)
+                self.tactical_overrides['paused_since'].pop(symbol, None)
+                
+        except Exception as e:
+            self.logger.debug(f"Error in auto-unblock: {e}")
+        
+        return adjustments
     
     def _adjust_position_sizing(self, perf_7d: Dict, advanced: Dict) -> List[str]:
         """Adjust position size multiplier based on recent performance"""
@@ -194,12 +236,15 @@ class AdaptiveTacticsManager:
                 )
                 
                 if should_pause and symbol not in self.tactical_overrides['paused_symbols']:
+                    from datetime import datetime
                     self.tactical_overrides['paused_symbols'].add(symbol)
+                    self.tactical_overrides['paused_since'][symbol] = datetime.now()  # Record when paused
                     newly_paused.add(symbol)
                     adjustments.append(f"⛔ Pausing {symbol} - Consistently underperforming ({win_rate:.0f}% win rate, ${total_pnl:.2f} P&L)")
                 
                 elif should_resume and symbol in self.tactical_overrides['paused_symbols']:
                     self.tactical_overrides['paused_symbols'].discard(symbol)
+                    self.tactical_overrides['paused_since'].pop(symbol, None)  # Remove timestamp
                     newly_resumed.add(symbol)
                     adjustments.append(f"✅ Resuming {symbol} - Performance improved ({win_rate:.0f}% win rate, ${total_pnl:.2f} P&L)")
                     
