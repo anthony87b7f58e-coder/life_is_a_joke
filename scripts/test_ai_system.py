@@ -165,7 +165,8 @@ def test_adaptive_tactics():
     
     # Test analyze and adjust
     try:
-        adjustments = tactics.analyze_and_adjust()
+        result = tactics.analyze_and_adjust()
+        adjustments = result.get('adjustments', [])
         print_test("Analyze and Adjust", True,
                    f"Made {len(adjustments)} tactical adjustments")
         
