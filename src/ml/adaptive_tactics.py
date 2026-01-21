@@ -275,3 +275,15 @@ class AdaptiveTacticsManager:
                 self.tactical_overrides['max_positions_override'] is not None
             ]) else 'default'
         }
+    
+    def get_current_tactics(self) -> Dict:
+        """
+        Get current tactical adjustments for diagnostic purposes
+        Returns dict with current tactics settings
+        """
+        return {
+            'position_size_multiplier': self.tactical_overrides['position_size_multiplier'],
+            'confidence_threshold': self.tactical_overrides['min_confidence_threshold'] / 100.0,  # Convert to 0-1 range
+            'max_positions': self.get_max_positions(),
+            'blocked_symbols': list(self.tactical_overrides['paused_symbols']),
+        }
