@@ -156,7 +156,7 @@ def test_adaptive_tactics():
     
     try:
         config = Config()
-        database = Database(config.db_path)
+        database = Database(config)
         tactics = AdaptiveTacticsManager(config, database, logger=None)
         print_test("AdaptiveTacticsManager initialization", True)
     except Exception as e:
@@ -208,7 +208,7 @@ def test_integration():
     # Test database connection
     try:
         config = Config()
-        db = Database(config.db_path)
+        db = Database(config)
         cursor = db.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM positions")
         count = cursor.fetchone()[0]

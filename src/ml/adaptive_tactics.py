@@ -16,8 +16,8 @@ class AdaptiveTacticsManager:
         self.database = database
         self.logger = logger or logging.getLogger(__name__)
         
-        # Get database path from database object
-        self.db_path = database.db_path if hasattr(database, 'db_path') else '/var/lib/trading-bot/trading_bot.db'
+        # Get database path from config
+        self.db_path = config.db_path
         
         # Track last adjustment time to avoid too frequent changes
         self.last_adjustment_time = {}
