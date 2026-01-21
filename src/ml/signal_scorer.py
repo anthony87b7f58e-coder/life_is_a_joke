@@ -61,6 +61,106 @@ class SignalScorer:
         total, profitable = result
         return profitable / total
     
+    def get_symbol_stats(self, symbol: str, days: int = 30) -> Dict:
+        """
+        Get comprehensive stats for a symbol
+        
+        Args:
+            symbol: Trading pair
+            days: Days of history to analyze
+            
+        Returns:
+            Dict with detailed stats including win_rate, total_trades, avg_pnl
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT COUNT(*) as total,
+                       SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as profitable,
+                       AVG(pnl) as avg_pnl
+                FROM positions
+                WHERE symbol = ?
+                AND status = 'closed'
+                AND pnl IS NOT NULL
+                AND DATE(closed_at) >= DATE('now', '-' || ? || ' days', 'localtime')
+            ''', (symbol, days))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if not result or result[0] == 0:
+                return {
+                    'total_trades': 0,
+                    'win_rate': 50.0,
+                    'avg_pnl': 0.0
+                }
+            
+            total, profitable, avg_pnl = result
+            win_rate = (profitable / total) * 100 if total > 0 else 50.0
+            
+            return {
+                'total_trades': total,
+                'win_rate': win_rate,
+                'avg_pnl': avg_pnl if avg_pnl else 0.0
+            }
+        except Exception:
+            return {
+                'total_trades': 0,
+                'win_rate': 50.0,
+                'avg_pnl': 0.0
+            }
+    
+    def get_side_stats(self, symbol: str, side: str, days: int = 30) -> Dict:
+        """
+        Get comprehensive stats for a specific side on a symbol
+        
+        Args:
+            symbol: Trading pair
+            side: BUY or SELL
+            days: Days of history to analyze
+            
+        Returns:
+            Dict with detailed stats including win_rate, trades
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT COUNT(*) as total,
+                       SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as profitable
+                FROM positions
+                WHERE symbol = ?
+                AND side = ?
+                AND status = 'closed'
+                AND pnl IS NOT NULL
+                AND DATE(closed_at) >= DATE('now', '-' || ? || ' days', 'localtime')
+            ''', (symbol, side, days))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if not result or result[0] == 0:
+                return {
+                    'trades': 0,
+                    'win_rate': 50.0
+                }
+            
+            total, profitable = result
+            win_rate = (profitable / total) * 100 if total > 0 else 50.0
+            
+            return {
+                'trades': total,
+                'win_rate': win_rate
+            }
+        except Exception:
+            return {
+                'trades': 0,
+                'win_rate': 50.0
+            }
+    
     def score_signal(self, symbol: str, side: str, confidence: float = 0.5) -> Dict:
         """
         Score a trading signal based on historical patterns

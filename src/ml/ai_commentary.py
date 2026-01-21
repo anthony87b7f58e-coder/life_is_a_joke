@@ -31,17 +31,18 @@ class AICommentaryGenerator:
     - Pattern recognition for trade sequences
     """
     
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: Optional[logging.Logger] = None, db_path: str = '/var/lib/trading-bot/trading_bot.db'):
         """
         Initialize AI Commentary Generator
         
         Args:
             logger: Optional logger instance
+            db_path: Path to the database file
         """
         self.logger = logger or logging.getLogger(__name__)
-        self.trade_analyzer = TradeAnalyzer(logger=self.logger)
-        self.perf_analyzer = PerformanceAnalyzer(logger=self.logger)
-        self.signal_scorer = SignalScorer(logger=self.logger)
+        self.trade_analyzer = TradeAnalyzer(db_path=db_path)
+        self.perf_analyzer = PerformanceAnalyzer(db_path=db_path)
+        self.signal_scorer = SignalScorer(db_path=db_path)
         
         # Performance cache with timestamps
         self._cache = {
@@ -76,8 +77,9 @@ class AICommentaryGenerator:
         """
         self._refresh_cache_if_needed()
         
-        perf_30d = self._cache.get('performance_30d', {})
-        avg_win_rate = perf_30d.get('win_rate', 50)
+        # Get performance with safe defaults
+        perf_30d = self._cache.get('performance_30d') or {}
+        avg_win_rate = perf_30d.get('win_rate', 50) if perf_30d else 50
         
         # Adjust confidence thresholds based on actual historical performance
         # If bot historically wins at 70%, then 70% confidence is "moderate"
@@ -241,7 +243,7 @@ class AICommentaryGenerator:
             
             # Get recent performance with caching
             self._refresh_cache_if_needed()
-            recent_perf = self._cache.get('performance_7d')
+            recent_perf = self._cache.get('performance_7d') or {}
             
             if recent_perf and recent_perf.get('total_trades', 0) >= 3:
                 win_rate = recent_perf.get('win_rate', 0)
@@ -261,7 +263,7 @@ class AICommentaryGenerator:
                     parts.append(f"🔍 <b>Strategy needs urgent review</b> ({win_rate:.0f}% recent win rate - consider pausing)")
                 
                 # Trend analysis
-                perf_30d = self._cache.get('performance_30d')
+                perf_30d = self._cache.get('performance_30d') or {}
                 if perf_30d and perf_30d.get('total_trades', 0) >= 5:
                     win_rate_30d = perf_30d.get('win_rate', 0)
                     if win_rate > win_rate_30d + 5:
@@ -542,9 +544,10 @@ class AICommentaryGenerator:
 # Singleton instance
 _commentary_generator = None
 
-def get_commentary_generator(logger: Optional[logging.Logger] = None) -> AICommentaryGenerator:
+def get_commentary_generator(logger: Optional[logging.Logger] = None, 
+                            db_path: str = '/var/lib/trading-bot/trading_bot.db') -> AICommentaryGenerator:
     """Get or create the commentary generator singleton"""
     global _commentary_generator
     if _commentary_generator is None:
-        _commentary_generator = AICommentaryGenerator(logger=logger)
+        _commentary_generator = AICommentaryGenerator(logger=logger, db_path=db_path)
     return _commentary_generator

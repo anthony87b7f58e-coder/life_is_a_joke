@@ -156,7 +156,9 @@ class TelegramNotifier:
                     symbol, side, confidence_normalized
                 )
             except Exception as e:
-                self.logger.debug(f"Could not generate AI commentary: {e}")
+                self.logger.error(f"Could not generate AI commentary: {e}", exc_info=True)
+                # Add visible error to notification instead of silently failing
+                ai_commentary = "\n\n⚠️ <i>AI Commentary unavailable</i>"
             
             message = f"""
 {emoji} <b>Position Opened</b>
@@ -268,7 +270,9 @@ class TelegramNotifier:
                     symbol, side, pnl, pnl_percent
                 )
             except Exception as e:
-                self.logger.debug(f"Could not generate AI commentary: {e}")
+                self.logger.error(f"Could not generate AI commentary: {e}", exc_info=True)
+                # Add visible error to notification instead of silently failing
+                ai_commentary = "\n\n⚠️ <i>AI Commentary unavailable</i>"
             
             message = f"""
 {emoji} <b>Position Closed</b>
@@ -581,7 +585,9 @@ class TelegramNotifier:
                     daily_pnl, open_positions_count
                 )
             except Exception as e:
-                self.logger.debug(f"Could not generate AI commentary: {e}")
+                self.logger.error(f"Could not generate AI commentary: {e}", exc_info=True)
+                # Add visible error to notification instead of silently failing
+                ai_commentary = "\n\n⚠️ <i>AI Commentary unavailable</i>"
             
             message = f"""
 📊 <b>Hourly Status Summary</b>

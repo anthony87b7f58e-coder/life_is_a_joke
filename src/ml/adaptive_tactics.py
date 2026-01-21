@@ -16,6 +16,9 @@ class AdaptiveTacticsManager:
         self.database = database
         self.logger = logger or logging.getLogger(__name__)
         
+        # Get database path from database object
+        self.db_path = database.db_path if hasattr(database, 'db_path') else '/var/lib/trading-bot/trading_bot.db'
+        
         # Track last adjustment time to avoid too frequent changes
         self.last_adjustment_time = {}
         self.adjustment_cooldown = timedelta(hours=1)  # Min time between adjustments
@@ -41,8 +44,8 @@ class AdaptiveTacticsManager:
             # Get recent performance (7 days and 30 days)
             from src.ml import TradeAnalyzer, PerformanceAnalyzer
             
-            analyzer = TradeAnalyzer(self.database, self.logger)
-            perf_analyzer = PerformanceAnalyzer(self.database, self.logger)
+            analyzer = TradeAnalyzer(db_path=self.db_path)
+            perf_analyzer = PerformanceAnalyzer(db_path=self.db_path)
             
             perf_7d = analyzer.analyze_performance(days=7)
             perf_30d = analyzer.analyze_performance(days=30)
