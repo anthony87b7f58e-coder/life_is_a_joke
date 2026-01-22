@@ -382,7 +382,7 @@ class StrategyManager:
                         quantity=quantity,
                         price=price,
                         strategy=strategy.name,
-                        score=score,
+                        score=confidence_score,
                         open_positions_count=open_positions_count
                     )
                     if success:
@@ -445,7 +445,8 @@ class StrategyManager:
             # ============================================================================
             # Get signal details
             # ============================================================================
-            score = signal.get('confidence')  # Get signal score
+            confidence_score = signal.get('confidence', 70)  # Get signal confidence score
+            self.logger.info(f"Signal confidence score: {confidence_score}/100")
             
             # Get account balance
             usdt_balance = 0
@@ -623,7 +624,7 @@ class StrategyManager:
                         quantity=quantity,
                         price=price,
                         strategy=strategy.name,
-                        score=score,
+                        score=confidence_score,
                         open_positions_count=open_positions_count
                     )
                     if success:
